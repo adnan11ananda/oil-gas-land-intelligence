@@ -337,12 +337,16 @@ elif page == "Interactive Map":
 
         gis_map = create_gis_map()
 
-        st_folium(
+        map_data=st_folium(
             gis_map,
             width=None,
             height=650,
-            use_container_width=True
+            use_container_width=True,
+            key="pipeline map"
         )
+
+        st.write("Drawing data:")
+        st.json(map_data.get("all_drawings"))
 
     except Exception as e:
 
