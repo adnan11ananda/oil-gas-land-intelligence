@@ -6,7 +6,7 @@ import pandas as pd
 
 
 # ============================================================
-# 1. PROJECT CONFIGURATION
+# PROJECT CONFIGURATION
 # ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -18,39 +18,40 @@ DATA_FILE = (
     / "oil_gas_land_intelligence_with_asset_parcels.gpkg"
 )
 
+PROPOSED_ALIGNMENT_FILE = (
+    PROJECT_ROOT
+    / "data"
+    / "synthetic"
+    / "proposed_pipeline_alignment.gpkg"
+)
+
 OUTPUT_DIR = PROJECT_ROOT / "outputs" / "reports"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+PARCEL_LAYER = "original_land_parcels"
+ALIGNMENT_LAYER = "proposed_alignment"
+
+ROW_WIDTH_M = 20
 
 
 # ============================================================
-# 2. LOAD ORIGINAL LAND PARCELS
+# 1. LOAD ORIGINAL LAND PARCELS
 # ============================================================
 
-def load_data():
-    """
-    Load original cadastral land parcels from GeoPackage.
-    """
+def load_parcels():
 
     if not DATA_FILE.exists():
         raise FileNotFoundError(
-            f"GeoPackage not found: {DATA_FILE}"
+            f"Land parcel dataset not found: {DATA_FILE}"
         )
 
     parcels = gpd.read_file(
         DATA_FILE,
-        layer="original_land_parcels"
+        layer=PARCEL_LAYER
     )
-
-    if parcels.empty:
-        raise ValueError("Original land parcels layer is empty.")
-
-    if parcels.crs is None:
-        raise ValueError("Land parcels have no CRS.")
 
     required_fields = [
         "parcel_id",
         "owner_type",
-        "land_status",
         "geometry"
     ]
 
@@ -64,6 +65,28 @@ def load_data():
             f"Missing parcel fields: {missing_fields}"
         )
 
+    if parcels.crs is None:
+        raise ValueError("Parcel dataset has no CRS.")
+
+    if not parcels.geometry.is_valid.all():
+        raise ValueError(
+            "Invalid parcel geometries detected."
+        )
+
+    if not parcels["parcel_id"].is_unique:
+        raise ValueError(
+            "Parcel IDs must be unique."
+        )
+
+    # Calculate original parcel area
+    parcels["parcel_area_ha"] = (
+        parcels.geometry.area / 10000
+    )
+
+    # Our synthetic case study assumes all parcels
+    # have not yet been acquired.
+    parcels["land_status"] = "Not Acquired"
+
     print("Original land parcels loaded successfully.")
     print(f"Number of parcels: {len(parcels)}")
     print(f"CRS: {parcels.crs}")
@@ -72,225 +95,126 @@ def load_data():
 
 
 # ============================================================
-# 3. PROPOSED PIPELINE ROW LAND ACQUISITION SCREENING
+# 2. LOAD PROPOSED PIPELINE ALIGNMENT
 # ============================================================
 
-def screen_pipeline_row(
-    parcels,
-    proposed_row,
-    row_width_m=20,
-    layer_name=None,
-    acquired_values=("acquired", "fully acquired"),
-    include_acquired=False
-):
-    """
-    Identify cadastral parcels affected by a proposed pipeline ROW.
+def load_proposed_alignment():
 
-    Input can be:
-    - A GeoDataFrame containing pipeline centerline geometry.
-    - A GeoDataFrame containing an existing ROW polygon.
-    - A file path to a GIS dataset.
-
-    Parameters
-    ----------
-    parcels : GeoDataFrame
-        Original cadastral land parcels.
-
-    proposed_row : GeoDataFrame or str or Path
-        Proposed pipeline centerline or ROW polygon.
-
-    row_width_m : float
-        Total ROW width in metres when input is a centerline.
-
-    layer_name : str, optional
-        Layer name when reading a GeoPackage.
-
-    acquired_values : tuple
-        Status values considered fully acquired.
-
-    include_acquired : bool
-        If False, return only parcels requiring acquisition
-        or status verification.
-
-    Returns
-    -------
-    GeoDataFrame
-        Spatial acquisition screening results.
-    """
-
-    # --------------------------------------------------------
-    # A. LOAD PROPOSED PIPELINE ALIGNMENT
-    # --------------------------------------------------------
-
-    if isinstance(proposed_row, (str, Path)):
-
-        proposed = gpd.read_file(
-            proposed_row,
-            layer=layer_name
+    if not PROPOSED_ALIGNMENT_FILE.exists():
+        raise FileNotFoundError(
+            "Proposed pipeline alignment not found: "
+            f"{PROPOSED_ALIGNMENT_FILE}"
         )
 
-    else:
-        proposed = proposed_row.copy()
+    alignment = gpd.read_file(
+        PROPOSED_ALIGNMENT_FILE,
+        layer=ALIGNMENT_LAYER
+    )
 
-    if proposed.empty:
+    if alignment.empty:
         raise ValueError(
             "Proposed pipeline alignment is empty."
         )
 
-    if proposed.crs is None:
+    if alignment.crs is None:
         raise ValueError(
-            "Proposed pipeline alignment has no CRS."
+            "Proposed alignment has no CRS."
+        )
+
+    if not alignment.geometry.is_valid.all():
+        raise ValueError(
+            "Invalid alignment geometries detected."
+        )
+
+    allowed_types = {"LineString", "MultiLineString"}
+
+    if not set(alignment.geometry.geom_type).issubset(
+        allowed_types
+    ):
+        raise ValueError(
+            "Alignment must contain LineString or MultiLineString."
+        )
+
+    print("\nProposed pipeline alignment loaded successfully.")
+    print(f"Number of features: {len(alignment)}")
+
+    return alignment
+
+
+# ============================================================
+# 3. PERFORM PIPELINE ROW ACQUISITION SCREENING
+# ============================================================
+
+def screen_pipeline_row(
+    parcels,
+    alignment,
+    row_width_m=ROW_WIDTH_M
+):
+
+    print("\n" + "=" * 45)
+    print("PROPOSED PIPELINE ROW SCREENING")
+    print("=" * 45)
+
+    if row_width_m <= 0:
+        raise ValueError(
+            "ROW width must be greater than zero."
         )
 
     # Reproject alignment to parcel CRS
-    if proposed.crs != parcels.crs:
-        proposed = proposed.to_crs(parcels.crs)
+    if alignment.crs != parcels.crs:
+        alignment = alignment.to_crs(parcels.crs)
 
-    # --------------------------------------------------------
-    # B. CREATE ROW CORRIDOR
-    # --------------------------------------------------------
+    # Dissolve all alignment features into one geometry
+    alignment_geometry = alignment.geometry.union_all()
 
-    geometry_types = set(
-        proposed.geometry.geom_type.dropna()
+    # Buffer centerline by half of the total ROW width
+    row_corridor = alignment_geometry.buffer(
+        row_width_m / 2,
+        cap_style="flat",
+        join_style="mitre"
     )
 
-    line_types = {
-        "LineString",
-        "MultiLineString"
-    }
+    # Create ROW corridor GeoDataFrame
+    corridor = gpd.GeoDataFrame(
+        {"corridor_id": [1]},
+        geometry=[row_corridor],
+        crs=parcels.crs
+    )
 
-    polygon_types = {
-        "Polygon",
-        "MultiPolygon"
-    }
+    # Spatial intersection between ROW corridor and parcels
+    affected = gpd.overlay(
+        parcels,
+        corridor,
+        how="intersection",
+        keep_geom_type=False
+    )
 
-    if geometry_types.issubset(line_types):
+    if affected.empty:
+        print("No land parcels intersect the proposed ROW.")
+        return affected
 
-        if row_width_m <= 0:
-            raise ValueError(
-                "ROW width must be greater than zero."
-            )
+    # Calculate potential acquisition area
+    affected["row_area_ha"] = (
+        affected.geometry.area / 10000
+    )
 
-        # Buffer both sides of the pipeline centerline
-        corridor = proposed.geometry.buffer(
-            row_width_m / 2,
-            cap_style="flat",
-            join_style="mitre"
-        )
+    # Calculate percentage of original parcel affected
+    affected["affected_percentage"] = (
+        affected["row_area_ha"]
+        / affected["parcel_area_ha"]
+        * 100
+    )
 
-    elif geometry_types.issubset(polygon_types):
+    # Acquisition classification
+    affected["land_status"] = "Not Acquired"
 
-        # Use existing ROW polygon directly
-        corridor = proposed.geometry
+    affected["acquisition_status"] = "Not Acquired"
 
-    else:
-        raise ValueError(
-            "Input must contain LineString, MultiLineString, "
-            "Polygon or MultiPolygon geometry."
-        )
+    affected["acquisition_action"] = (
+        "Acquisition required"
+    )
 
-    row_geometry = corridor.union_all()
-
-    if row_geometry.is_empty:
-        raise ValueError("ROW corridor geometry is empty.")
-
-    # --------------------------------------------------------
-    # C. INTERSECT ROW WITH ORIGINAL LAND PARCELS
-    # --------------------------------------------------------
-
-    results = []
-
-    for _, parcel in parcels.iterrows():
-
-        intersection = parcel.geometry.intersection(
-            row_geometry
-        )
-
-        if intersection.is_empty:
-            continue
-
-        if intersection.area <= 0:
-            continue
-
-        parcel_area = parcel.geometry.area
-        row_area = intersection.area
-
-        if parcel_area <= 0:
-            continue
-
-        affected_percentage = (
-            row_area / parcel_area
-        ) * 100
-
-        status = parcel["land_status"]
-
-        if pd.isna(status):
-            status = "Unknown"
-
-        status = str(status).strip()
-
-        normalized_status = status.lower()
-
-        normalized_acquired = {
-            str(value).strip().lower()
-            for value in acquired_values
-        }
-
-        # Determine acquisition action
-        if normalized_status in normalized_acquired:
-
-            action = "No new acquisition required"
-            requires_acquisition = False
-            requires_review = False
-
-        elif any(
-            keyword in normalized_status
-            for keyword in [
-                "pending",
-                "not acquired",
-                "unacquired",
-                "uncompensated"
-            ]
-        ):
-
-            action = "Acquisition required"
-            requires_acquisition = True
-            requires_review = False
-
-        else:
-
-            action = "Verify acquisition status"
-            requires_acquisition = False
-            requires_review = True
-
-        results.append({
-
-            "parcel_id": parcel["parcel_id"],
-
-            "owner_type": parcel["owner_type"],
-
-            "land_status": status,
-
-            "parcel_area_ha": parcel_area / 10000,
-
-            "row_area_ha": row_area / 10000,
-
-            "affected_percentage": affected_percentage,
-
-            "acquisition_action": action,
-
-            "requires_acquisition": requires_acquisition,
-
-            "requires_review": requires_review,
-
-            "geometry": intersection
-
-        })
-
-    # --------------------------------------------------------
-    # D. CREATE OUTPUT GEODATAFRAME
-    # --------------------------------------------------------
-
+    # Keep relevant output attributes
     output_fields = [
         "parcel_id",
         "owner_type",
@@ -298,178 +222,130 @@ def screen_pipeline_row(
         "parcel_area_ha",
         "row_area_ha",
         "affected_percentage",
+        "acquisition_status",
         "acquisition_action",
-        "requires_acquisition",
-        "requires_review",
         "geometry"
     ]
 
-    result = gpd.GeoDataFrame(
-        results,
-        columns=output_fields,
-        geometry="geometry",
-        crs=parcels.crs
+    results = affected[output_fields].copy()
+
+    # Sort by potential acquisition area
+    results = results.sort_values(
+        by="row_area_ha",
+        ascending=False
     )
 
-    if result.empty:
-        print("No land parcels intersect the proposed ROW.")
-        return result
+    # Summary statistics
+    total_affected_parcels = results["parcel_id"].nunique()
 
-    # Round calculated values
-    result["parcel_area_ha"] = (
-        result["parcel_area_ha"].round(4)
-    )
+    total_acquisition_area = results["row_area_ha"].sum()
 
-    result["row_area_ha"] = (
-        result["row_area_ha"].round(4)
-    )
-
-    result["affected_percentage"] = (
-        result["affected_percentage"].round(2)
-    )
-
-    # --------------------------------------------------------
-    # E. FILTER ACQUISITION REQUIREMENTS
-    # --------------------------------------------------------
-
-    if not include_acquired:
-
-        result = result[
-            result["requires_acquisition"]
-            | result["requires_review"]
-        ].copy()
-
-    # --------------------------------------------------------
-    # F. PRINT SCREENING SUMMARY
-    # --------------------------------------------------------
-
-    print("\n========================================")
-    print("PROPOSED PIPELINE ROW SCREENING")
-    print("========================================")
-
-    print(f"Affected parcels: {len(results)}")
-
+    print(f"ROW width: {row_width_m} m")
     print(
-        "Parcels requiring acquisition:",
-        sum(
-            item["requires_acquisition"]
-            for item in results
-        )
+        f"Affected parcels: {total_affected_parcels}"
     )
 
     print(
-        "Parcels requiring status verification:",
-        sum(
-            item["requires_review"]
-            for item in results
-        )
+        "Parcels requiring acquisition: "
+        f"{total_affected_parcels}"
     )
 
     print(
-        "Total affected ROW area:",
-        round(
-            sum(
-                item["row_area_ha"]
-                for item in results
-            ),
-            4
-        ),
-        "ha"
+        "Total potential acquisition area: "
+        f"{total_acquisition_area:.4f} ha"
     )
 
     print("\nAcquisition requirements:")
 
-    if not result.empty:
+    print(
+        results[
+            [
+                "parcel_id",
+                "owner_type",
+                "parcel_area_ha",
+                "row_area_ha",
+                "affected_percentage",
+                "acquisition_action"
+            ]
+        ].to_string(index=False)
+    )
 
-        print(
-            result[
-                [
-                    "parcel_id",
-                    "owner_type",
-                    "land_status",
-                    "row_area_ha",
-                    "affected_percentage",
-                    "acquisition_action"
-                ]
-            ].to_string(index=False)
-        )
-
-    return result
+    return results
 
 
 # ============================================================
 # 4. EXPORT SCREENING RESULTS
 # ============================================================
 
-def export_screening_results(result):
-    """
-    Export screening results to CSV and GeoPackage.
-    """
+def export_screening_results(results):
 
-    if result.empty:
-        print("No results to export.")
+    if results.empty:
+        print(
+            "\nNo screening results to export."
+        )
         return
 
-    csv_file = (
+    OUTPUT_DIR.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    csv_output = (
         OUTPUT_DIR
         / "proposed_pipeline_acquisition.csv"
     )
 
-    gpkg_file = (
+    gpkg_output = (
         OUTPUT_DIR
         / "proposed_pipeline_acquisition.gpkg"
     )
 
-    # Export tabular report
-    result.drop(
+    # Export CSV without geometry
+    results.drop(
         columns="geometry"
     ).to_csv(
-        csv_file,
+        csv_output,
         index=False
     )
 
-    # Export spatial result
-    if gpkg_file.exists():
-        gpkg_file.unlink()
+    # Export spatial results
+    if gpkg_output.exists():
+        gpkg_output.unlink()
 
-    result.to_file(
-        gpkg_file,
+    results.to_file(
+        gpkg_output,
         layer="acquisition_screening",
-        driver="GPKG",
-        engine="pyogrio"
+        driver="GPKG"
     )
 
     print("\nScreening results exported:")
-    print(csv_file)
-    print(gpkg_file)
+    print(csv_output)
+    print(gpkg_output)
 
 
 # ============================================================
-# 5. MAIN TEST
+# 5. MAIN WORKFLOW
 # ============================================================
 
-if __name__ == "__main__":
+def main():
 
     print("\nOIL & GAS LAND INTELLIGENCE")
     print("PROPOSED PIPELINE ACQUISITION SCREENING")
 
-    # Load original land parcels
-    parcels = load_data()
+    parcels = load_parcels()
 
-    # Screen proposed pipeline alignment
-    result = screen_pipeline_row(
+    alignment = load_proposed_alignment()
+
+    results = screen_pipeline_row(
         parcels=parcels,
-        proposed_row=(
-            PROJECT_ROOT
-            / "data"
-            / "synthetic"
-            / "proposed_pipeline_alignment.gpkg"
-        ),
-        layer_name="proposed_alignment",
-        row_width_m=20
+        alignment=alignment,
+        row_width_m=ROW_WIDTH_M
     )
 
-    # Export results
-    export_screening_results(result)
+    export_screening_results(results)
 
     print("\nScreening process completed.")
+
+
+if __name__ == "__main__":
+    main()
