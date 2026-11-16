@@ -179,3 +179,18 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# VS Code
+.vscode/
+
+# Windows system files
+Thumbs.db
+Desktop.ini
+
+# SQLite / GeoPackage temporary files
+*.gpkg-wal
+*.gpkg-shm
+*.gpkg-journal
+
+# Python logs
+*.log
