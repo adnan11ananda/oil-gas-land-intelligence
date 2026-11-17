@@ -75,7 +75,12 @@ def load_alignment():
 # 4. INTERACTIVE GIS MAP
 # =====================================================
 
-def create_gis_map(row_gdf=None, drawn_pipeline_gdf=None):
+def create_gis_map(
+    row_gdf=None,
+    drawn_pipeline_gdf=None,
+    acquisition_gdf=None,
+    forest_intersection_gdf=None
+): 
 
     # Load GIS layers
     parcels = load_layer(
@@ -106,6 +111,15 @@ def create_gis_map(row_gdf=None, drawn_pipeline_gdf=None):
     facilities = facilities.to_crs(epsg=4326)
     pipelines = pipelines.to_crs(epsg=4326)
     alignment = alignment.to_crs(epsg=4326)
+    
+    # Convert screening results to WGS 84 for map display
+    if acquisition_gdf is not None:
+        acquisition_gdf = acquisition_gdf.to_crs(epsg=4326)
+
+    if forest_intersection_gdf is not None:
+        forest_intersection_gdf = forest_intersection_gdf.to_crs(
+            epsg=4326
+        )
 
     # Calculate map center
     bounds = parcels.total_bounds
@@ -228,6 +242,39 @@ def create_gis_map(row_gdf=None, drawn_pipeline_gdf=None):
                 "fillOpacity": 0.35
             },
             tooltip="Generated Pipeline ROW"
+        ).add_to(m)
+
+    # Affected land parcels
+    if acquisition_gdf is not None and not acquisition_gdf.empty:
+
+        folium.GeoJson(
+            acquisition_gdf,
+            name="Affected Land Parcels",
+            style_function=lambda feature: {
+                "color": "#dc2626",
+                "fillColor": "#ef4444",
+                "weight": 2,
+                "fillOpacity": 0.45
+            },
+            tooltip="Affected Land Parcel"
+        ).add_to(m)
+
+    # Forest areas intersected by ROW
+    if (
+        forest_intersection_gdf is not None
+        and not forest_intersection_gdf.empty
+    ):
+
+        folium.GeoJson(
+            forest_intersection_gdf,
+            name="Affected Forest Areas",
+            style_function=lambda feature: {
+                "color": "#166534",
+                "fillColor": "#22c55e",
+                "weight": 3,
+                "fillOpacity": 0.65
+            },
+            tooltip="Forest Area Affected by ROW"
         ).add_to(m)
 
     # Pipeline drawing tools
@@ -370,6 +417,7 @@ elif page == "Interactive Map":
         row_gdf = None
         drawn_pipeline_gdf = None
         pipeline_gdf_metric = None
+        screening_results = None
 
         # Process stored pipeline drawing
         if st.session_state.drawn_pipeline is not None:
@@ -425,8 +473,18 @@ elif page == "Interactive Map":
         # Create map with generated ROW
         gis_map = create_gis_map(
             row_gdf=row_gdf,
-            drawn_pipeline_gdf=drawn_pipeline_gdf
-        )
+            drawn_pipeline_gdf=drawn_pipeline_gdf,
+            acquisition_gdf=(
+                screening_results["acquisition"]
+                if screening_results is not None
+                else None
+            ),
+            forest_intersection_gdf=(
+                screening_results["forest_intersection"]
+                if screening_results is not None
+                else None
+            )
+)
 
         # Display map
         map_data = st_folium(
