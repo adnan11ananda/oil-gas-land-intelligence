@@ -345,6 +345,59 @@ elif page == "Interactive Map":
             key="pipeline map"
         )
 
+
+        # Capture pipeline drawing
+        drawings = map_data.get("all_drawings")
+
+        if drawings:
+
+            from shapely.geometry import shape
+
+            # Get the first drawn geometry
+            line = shape(drawings[0]["geometry"])
+
+            # Create GeoDataFrame
+            pipeline_gdf = gpd.GeoDataFrame(
+                {"pipeline_id": ["PROP-PL-002"]},
+                geometry=[line],
+                crs="EPSG:4326"
+            )
+
+            # Convert to UTM Zone 48S
+            pipeline_gdf = pipeline_gdf.to_crs(epsg=32748)
+
+            # Generate ROW corridor
+            row_gdf = pipeline_gdf.copy()
+
+            row_gdf["geometry"] = (
+                pipeline_gdf.geometry.buffer(row_width / 2)
+            )
+
+            # Calculate metrics
+            pipeline_length = (
+                pipeline_gdf.geometry.length.sum() / 1000
+            )
+
+            row_area = (
+                row_gdf.geometry.area.sum() / 10000
+            )
+
+            st.subheader("Pipeline ROW Results")
+
+            col1, col2 = st.columns(2)
+
+            col1.metric(
+                "Pipeline Length",
+                f"{pipeline_length:.2f} km"
+            )
+
+            col2.metric(
+                "ROW Area",
+                f"{row_area:.2f} ha"
+            )
+
+            st.success("ROW corridor generated successfully!")
+
         st.write("Drawing data:")
         st.json(map_data.get("all_drawings"))
 
