@@ -23,13 +23,6 @@ DATA_PATH = (
     / "oil_gas_land_intelligence_with_asset_parcels.gpkg"
 )
 
-ALIGNMENT_PATH = (
-    PROJECT_DIR
-    / "data"
-    / "synthetic"
-    / "proposed_pipeline_alignment.gpkg"
-)
-
 SCREENING_PATH = (
     PROJECT_DIR
     / "outputs"
@@ -66,12 +59,6 @@ def load_layer(file_path, layer_name):
     )
 
 
-@st.cache_data
-def load_alignment():
-
-    return gpd.read_file(ALIGNMENT_PATH)
-
-
 # =====================================================
 # 4. INTERACTIVE GIS MAP
 # =====================================================
@@ -104,14 +91,11 @@ def create_gis_map(
         "pipelines"
     )
 
-    alignment = load_alignment()
-
     # Convert layers to WGS 84
     parcels = parcels.to_crs(epsg=4326)
     forests = forests.to_crs(epsg=4326)
     facilities = facilities.to_crs(epsg=4326)
     pipelines = pipelines.to_crs(epsg=4326)
-    alignment = alignment.to_crs(epsg=4326)
     
     # Convert screening results to WGS 84 for map display
     if acquisition_gdf is not None:
@@ -208,15 +192,6 @@ def create_gis_map(
             )
         ).add_to(m)
 
-    # Existing proposed alignment
-    folium.GeoJson(
-        alignment,
-        name="Existing Proposed Pipeline",
-        style_function=lambda feature: {
-            "color": "#ea580c",
-            "weight": 4
-        }
-    ).add_to(m)
 
     # User-drawn pipeline alignment
     if drawn_pipeline_gdf is not None:
@@ -322,11 +297,11 @@ st.sidebar.title("Navigation")
 page = st.sidebar.radio(
     "Select Module",
     [
-        "Overview",
-        "Interactive Map",
-        "Land Acquisition",
-        "Environmental Screening"
-    ]
+    "Overview",
+    "Alignment Designer",
+    "Land Acquisition",
+    "Environmental Screening"
+]
 )
 
 st.sidebar.divider()
@@ -342,60 +317,101 @@ st.sidebar.caption(
 
 if page == "Overview":
 
-    st.header("Project Overview")
+    st.header("Proposed Pipeline Alignment & Screening")
 
     st.write(
-        "This platform demonstrates the application of GIS "
-        "technology for Oil & Gas land management and "
-        "pipeline route screening."
+        """
+        This application is designed to support preliminary
+        geospatial screening of proposed Oil & Gas pipeline routes.
+
+        Users can draw a proposed pipeline alignment, define the
+        Right of Way (ROW) width, and automatically identify
+        potentially affected land parcels and forest areas.
+        """
     )
 
     st.divider()
 
-    col1, col2, col3, col4 = st.columns(4)
+    st.subheader("Application Workflow")
 
-    col1.metric("Pipeline Length", "10.81 km")
-    col2.metric("Affected Parcels", "18")
-    col3.metric("Potential Acquisition", "21.61 ha")
-    col4.metric("Forest Intersection", "7.12 ha")
-
-    st.divider()
-
-    st.subheader("Screening Summary")
-
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-
-        st.info(
+        st.markdown("### 1. Alignment Design")
+        st.write(
             """
-            **Land Acquisition**
-
-            - 18 affected land parcels
-            - 21.6135 ha potential acquisition area
+            - Draw a proposed pipeline route
+            - Define pipeline ROW width
+            - Generate the ROW corridor
             """
         )
 
     with col2:
-
-        st.warning(
+        st.markdown("### 2. Land Acquisition Screening")
+        st.write(
             """
-            **Environmental Screening**
-
-            - 2 affected forest polygons
-            - 7.1175 ha forest intersection
-            - 32.93% of ROW within forest
+            - Identify affected land parcels
+            - Calculate potential acquisition areas
+            - Review land ownership information
             """
         )
+
+    with col3:
+        st.markdown("### 3. Environmental Screening")
+        st.write(
+            """
+            - Identify forest area intersections
+            - Calculate affected forest areas
+            - Assess potential environmental constraints
+            """
+        )
+
+    st.divider()
+
+    st.subheader("Available Reference Layers")
+
+    st.write(
+        """
+        The application uses existing geospatial information
+        as reference data during the screening process:
+        """
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown(
+            """
+            - **Land Parcels:** Synthetic cadastral boundaries
+            - **Existing Pipelines:** Existing pipeline network
+            """
+        )
+
+    with col2:
+        st.markdown(
+            """
+            - **Production Facilities:** Existing Oil & Gas facilities
+            - **Forest Areas:** Environmental reference polygons
+            """
+        )
+
+    st.divider()
+
+    st.caption(
+        "Portfolio Project | All spatial data used in this "
+        "demonstration is synthetic and intended for "
+        "illustrative purposes only."
+    )
+
 
 
 # =====================================================
 # 8. INTERACTIVE GIS MAP
 # =====================================================
 
-elif page == "Interactive Map":
+elif page == "Alignment Designer":
 
-    st.header("Interactive GIS Map")
+    st.header("Pipeline Alignment Designer")
 
     st.subheader("Pipeline ROW Designer")
 
