@@ -584,7 +584,20 @@ elif page == "Interactive Map":
                 acquisition_report,
                 use_container_width=True,
                 hide_index=True
-)
+            )
+
+            # Export Land Acquisition Report
+            acquisition_csv = acquisition_report.to_csv(
+                index=False,
+                encoding="utf-8-sig"
+            )
+
+            st.download_button(
+                label="Download Land Acquisition Report (CSV)",
+                data=acquisition_csv,
+                file_name="land_acquisition_screening.csv",
+                mime="text/csv"
+            )
 
             # Environmental screening summary
             st.divider()
@@ -614,17 +627,43 @@ elif page == "Interactive Map":
                 f"{summary['pipeline_length_in_forest_km']:.2f} km"
             )
 
+            # Prepare Environmental Screening Report
+            forest_report = screening_results["forest_intersection"][
+                [
+                    "forest_id",
+                    "forest_type",
+                    "forest_area_ha",
+                    "intersection_area_ha",
+                    "affected_percentage"
+                ]
+            ].copy()
+
+            # Round numerical values
+            for column in [
+                "forest_area_ha",
+                "intersection_area_ha",
+                "affected_percentage"
+            ]:
+                forest_report[column] = forest_report[column].round(4)
+
+            # Display report
             st.dataframe(
-                screening_results["forest_intersection"][
-                    [
-                        "forest_id",
-                        "forest_type",
-                        "forest_area_ha",
-                        "intersection_area_ha",
-                        "affected_percentage"
-                    ]
-                ],
-                use_container_width=True
+                forest_report,
+                use_container_width=True,
+                hide_index=True
+            )
+
+            # Export Environmental Screening Report
+            forest_csv = forest_report.to_csv(
+                index=False,
+                encoding="utf-8-sig"
+            )
+
+            st.download_button(
+                label="Download Environmental Screening Report (CSV)",
+                data=forest_csv,
+                file_name="environmental_screening_report.csv",
+                mime="text/csv"
             )
 
         else:
