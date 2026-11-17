@@ -552,17 +552,39 @@ elif page == "Interactive Map":
                 f"{summary['potential_acquisition_area_ha']:.2f} ha"
             )
 
-            st.dataframe(
-                screening_results["acquisition"][
-                    [
-                        "parcel_area_ha",
-                        "row_area_ha",
-                        "affected_percentage",
-                        "acquisition_status"
-                    ]
-                ],
-                use_container_width=True
+            # Prepare land acquisition report
+            acquisition_report = screening_results["acquisition"][
+                [
+                    "parcel_id",
+                    "parent_parcel_id",
+                    "owner_type",
+                    "land_status",
+                    "parcel_area_ha",
+                    "row_area_ha",
+                    "affected_percentage",
+                    "acquisition_status"
+                ]
+            ].copy()
+
+            # Round numerical values
+            acquisition_report["parcel_area_ha"] = (
+                acquisition_report["parcel_area_ha"].round(4)
             )
+
+            acquisition_report["row_area_ha"] = (
+                acquisition_report["row_area_ha"].round(4)
+            )
+
+            acquisition_report["affected_percentage"] = (
+                acquisition_report["affected_percentage"].round(2)
+            )
+
+            # Display report
+            st.dataframe(
+                acquisition_report,
+                use_container_width=True,
+                hide_index=True
+)
 
             # Environmental screening summary
             st.divider()

@@ -22,7 +22,7 @@ def analyze_route(
 
     parcels = gpd.read_file(
         data_path,
-        layer="original_land_parcels"
+        layer="land_parcels"
     )
 
     forests = gpd.read_file(
