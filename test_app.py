@@ -5,6 +5,7 @@ import folium
 
 from folium.plugins import Draw
 from streamlit_folium import st_folium
+from shapely.geometry import shape
 from pathlib import Path
 
 
@@ -37,18 +38,31 @@ SCREENING_PATH = (
 
 
 # =====================================================
-# 2. DATA LOADING FUNCTIONS
+# 2. STREAMLIT CONFIGURATION & SESSION STATE
+# =====================================================
+
+st.set_page_config(
+    page_title="Oil & Gas Land Intelligence",
+    page_icon="🗺️",
+    layout="wide"
+)
+
+# Store the user's drawn pipeline between reruns
+if "drawn_pipeline" not in st.session_state:
+    st.session_state.drawn_pipeline = None
+
+
+# =====================================================
+# 3. DATA LOADING FUNCTIONS
 # =====================================================
 
 @st.cache_data
 def load_layer(file_path, layer_name):
 
-    gdf = gpd.read_file(
+    return gpd.read_file(
         file_path,
         layer=layer_name
     )
-
-    return gdf
 
 
 @st.cache_data
@@ -58,10 +72,10 @@ def load_alignment():
 
 
 # =====================================================
-# 3. INTERACTIVE GIS MAP
+# 4. INTERACTIVE GIS MAP
 # =====================================================
 
-def create_gis_map():
+def create_gis_map(row_gdf=None, drawn_pipeline_gdf=None):
 
     # Load GIS layers
     parcels = load_layer(
@@ -107,14 +121,13 @@ def create_gis_map():
         control_scale=True
     )
 
-    # OpenStreetMap
+    # Basemaps
     folium.TileLayer(
         "OpenStreetMap",
         name="OpenStreetMap",
         show=True
     ).add_to(m)
 
-    # Satellite imagery
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         attr="Tiles © Esri",
@@ -123,7 +136,6 @@ def create_gis_map():
         control=True
     ).add_to(m)
 
-    # Topographic map
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
         attr="Tiles © Esri",
@@ -181,15 +193,42 @@ def create_gis_map():
             )
         ).add_to(m)
 
-    # Proposed pipeline alignment
+    # Existing proposed alignment
     folium.GeoJson(
         alignment,
-        name="Proposed Pipeline",
+        name="Existing Proposed Pipeline",
         style_function=lambda feature: {
             "color": "#ea580c",
             "weight": 4
         }
     ).add_to(m)
+
+    # User-drawn pipeline alignment
+    if drawn_pipeline_gdf is not None:
+
+        folium.GeoJson(
+            drawn_pipeline_gdf,
+            name="User Drawn Pipeline",
+            style_function=lambda feature: {
+                "color": "#dc2626",
+                "weight": 4
+            }
+        ).add_to(m)
+
+    # Generated ROW corridor
+    if row_gdf is not None:
+
+        folium.GeoJson(
+            row_gdf,
+            name="Generated ROW Corridor",
+            style_function=lambda feature: {
+                "color": "#ea580c",
+                "fillColor": "#fb923c",
+                "weight": 2,
+                "fillOpacity": 0.35
+            },
+            tooltip="Generated Pipeline ROW"
+        ).add_to(m)
 
     # Pipeline drawing tools
     Draw(
@@ -212,19 +251,12 @@ def create_gis_map():
     # Layer control
     folium.LayerControl().add_to(m)
 
-    # Return map
     return m
 
 
 # =====================================================
-# 4. STREAMLIT CONFIGURATION
+# 5. APPLICATION HEADER
 # =====================================================
-
-st.set_page_config(
-    page_title="Oil & Gas Land Intelligence",
-    page_icon="🗺️",
-    layout="wide"
-)
 
 st.title("Oil & Gas Land Intelligence")
 
@@ -234,7 +266,7 @@ st.caption(
 
 
 # =====================================================
-# 5. NAVIGATION
+# 6. NAVIGATION
 # =====================================================
 
 st.sidebar.title("Navigation")
@@ -257,7 +289,7 @@ st.sidebar.caption(
 
 
 # =====================================================
-# 6. OVERVIEW DASHBOARD
+# 7. OVERVIEW DASHBOARD
 # =====================================================
 
 if page == "Overview":
@@ -310,17 +342,16 @@ if page == "Overview":
 
 
 # =====================================================
-# 7. INTERACTIVE MAP
+# 8. INTERACTIVE GIS MAP
 # =====================================================
-
 
 elif page == "Interactive Map":
 
     st.header("Interactive GIS Map")
 
-    # Pipeline ROW Designer
     st.subheader("Pipeline ROW Designer")
 
+    # ROW width input
     row_width = st.number_input(
         "ROW Width (metres)",
         min_value=1.0,
@@ -335,52 +366,101 @@ elif page == "Interactive Map":
 
     try:
 
-        gis_map = create_gis_map()
+        # Initialize output layers
+        row_gdf = None
+        drawn_pipeline_gdf = None
+        pipeline_gdf_metric = None
 
-        map_data=st_folium(
-            gis_map,
-            width=None,
-            height=650,
-            use_container_width=True,
-            key="pipeline map"
-        )
+        # Process stored pipeline drawing
+        if st.session_state.drawn_pipeline is not None:
 
+            line = shape(
+                st.session_state.drawn_pipeline["geometry"]
+            )
 
-        # Capture pipeline drawing
-        drawings = map_data.get("all_drawings")
+            if line.geom_type != "LineString":
+                raise ValueError(
+                    "Please draw a pipeline using the polyline tool."
+                )
 
-        if drawings:
+            if line.is_empty or not line.is_valid or line.length == 0:
+                raise ValueError(
+                    "The drawn pipeline geometry is invalid or empty."
+                )
 
-            from shapely.geometry import shape
-
-            # Get the first drawn geometry
-            line = shape(drawings[0]["geometry"])
-
-            # Create GeoDataFrame
+            # Create pipeline GeoDataFrame in WGS 84
             pipeline_gdf = gpd.GeoDataFrame(
                 {"pipeline_id": ["PROP-PL-002"]},
                 geometry=[line],
                 crs="EPSG:4326"
             )
 
-            # Convert to UTM Zone 48S
-            pipeline_gdf = pipeline_gdf.to_crs(epsg=32748)
-
-            # Generate ROW corridor
-            row_gdf = pipeline_gdf.copy()
-
-            row_gdf["geometry"] = (
-                pipeline_gdf.geometry.buffer(row_width / 2)
+            # Project to UTM Zone 48S for metric calculations
+            pipeline_gdf_metric = pipeline_gdf.to_crs(
+                epsg=32748
             )
 
-            # Calculate metrics
+            # Generate ROW buffer
+            row_gdf_metric = pipeline_gdf_metric.copy()
+
+            row_gdf_metric["geometry"] = (
+                pipeline_gdf_metric.geometry.buffer(
+                    row_width / 2
+                )
+            )
+
+            # Convert geometries back to WGS 84 for map display
+            row_gdf = row_gdf_metric.to_crs(
+                epsg=4326
+            )
+
+            drawn_pipeline_gdf = pipeline_gdf
+
+        # Create map with generated ROW
+        gis_map = create_gis_map(
+            row_gdf=row_gdf,
+            drawn_pipeline_gdf=drawn_pipeline_gdf
+        )
+
+        # Display map
+        map_data = st_folium(
+            gis_map,
+            width=None,
+            height=650,
+            use_container_width=True,
+            key="pipeline_map"
+        )
+
+        # Capture newly drawn pipeline
+        drawings = map_data.get("all_drawings")
+
+        if drawings:
+
+            latest_drawing = drawings[-1]
+
+            if (
+                latest_drawing
+                != st.session_state.drawn_pipeline
+            ):
+
+                st.session_state.drawn_pipeline = latest_drawing
+
+                st.rerun()
+
+        # Display ROW results
+        if row_gdf is not None:
+
             pipeline_length = (
-                pipeline_gdf.geometry.length.sum() / 1000
+                pipeline_gdf_metric.geometry.length.sum()
+                / 1000
             )
 
             row_area = (
-                row_gdf.geometry.area.sum() / 10000
+                row_gdf_metric.geometry.area.sum()
+                / 10000
             )
+
+            st.divider()
 
             st.subheader("Pipeline ROW Results")
 
@@ -396,19 +476,25 @@ elif page == "Interactive Map":
                 f"{row_area:.2f} ha"
             )
 
-            st.success("ROW corridor generated successfully!")
+            st.success(
+                "ROW corridor generated successfully!"
+            )
 
-        st.write("Drawing data:")
-        st.json(map_data.get("all_drawings"))
+        else:
+
+            st.info(
+                "Draw a pipeline alignment on the map to generate its ROW corridor."
+            )
 
     except Exception as e:
 
         st.error(
-            f"Unable to load GIS map: {e}"
+            f"Unable to process pipeline alignment: {e}"
         )
 
+
 # =====================================================
-# 8. LAND ACQUISITION
+# 9. LAND ACQUISITION
 # =====================================================
 
 elif page == "Land Acquisition":
@@ -421,7 +507,7 @@ elif page == "Land Acquisition":
 
 
 # =====================================================
-# 9. ENVIRONMENTAL SCREENING
+# 10. ENVIRONMENTAL SCREENING
 # =====================================================
 
 elif page == "Environmental Screening":
