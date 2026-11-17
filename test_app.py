@@ -1,4 +1,5 @@
 
+import pandas as pd
 import streamlit as st
 import geopandas as gpd
 import folium
@@ -638,6 +639,117 @@ elif page == "Interactive Map":
                 ]
             ].copy()
 
+            # =====================================================
+            # CONSOLIDATED PIPELINE SCREENING REPORT
+            # =====================================================
+
+            summary = screening_results["summary"]
+
+            # 1. Pipeline information
+            report_rows = [
+                {
+                    "category": "Pipeline",
+                    "indicator": "Pipeline Length",
+                    "value": summary["pipeline_length_km"],
+                    "unit": "km"
+                },
+                {
+                    "category": "Pipeline",
+                    "indicator": "ROW Width",
+                    "value": row_width,
+                    "unit": "m"
+                },
+                {
+                    "category": "Pipeline",
+                    "indicator": "Total ROW Area",
+                    "value": summary["row_area_ha"],
+                    "unit": "ha"
+                },
+
+                # 2. Land acquisition
+                {
+                    "category": "Land Acquisition",
+                    "indicator": "Affected Parcels",
+                    "value": summary["affected_parcels"],
+                    "unit": "parcels"
+                },
+                {
+                    "category": "Land Acquisition",
+                    "indicator": "Potential Acquisition Area",
+                    "value": summary["potential_acquisition_area_ha"],
+                    "unit": "ha"
+                },
+
+                # 3. Environmental screening
+                {
+                    "category": "Environmental",
+                    "indicator": "Affected Forest Polygons",
+                    "value": summary["affected_forest_polygons"],
+                    "unit": "polygons"
+                },
+                {
+                    "category": "Environmental",
+                    "indicator": "Forest Intersection Area",
+                    "value": summary["forest_intersection_area_ha"],
+                    "unit": "ha"
+                },
+                {
+                    "category": "Environmental",
+                    "indicator": "ROW Within Forest",
+                    "value": summary["forest_percentage_of_row"],
+                    "unit": "%"
+                },
+                {
+                    "category": "Environmental",
+                    "indicator": "Pipeline Length Within Forest",
+                    "value": summary["pipeline_length_in_forest_km"],
+                    "unit": "km"
+                }
+            ]
+
+            # 4. Ownership breakdown
+            ownership_summary = (
+                acquisition_report
+                .groupby("owner_type", as_index=False)
+                .agg(
+                    affected_parcels=("parcel_id", "count"),
+                    potential_acquisition_ha=("row_area_ha", "sum")
+                )
+            )
+
+            for _, row in ownership_summary.iterrows():
+
+                report_rows.append({
+                    "category": "Ownership Breakdown",
+                    "indicator": row["owner_type"],
+                    "value": round(row["potential_acquisition_ha"], 4),
+                    "unit": "ha"
+                })
+
+            # 5. Create consolidated DataFrame
+            consolidated_report = pd.DataFrame(report_rows)
+            
+            # Export consolidated report
+            consolidated_csv = consolidated_report.to_csv(
+                index=False,
+                encoding="utf-8-sig"
+            )
+
+            st.divider()
+            st.subheader("Consolidated Project Report")
+
+            st.dataframe(
+                consolidated_report,
+                use_container_width=True,
+                hide_index=True
+            )
+
+            st.download_button(
+                label="Download Consolidated Screening Report",
+                data=consolidated_csv,
+                file_name="consolidated_pipeline_screening.csv",
+                mime="text/csv"
+            )
             # Round numerical values
             for column in [
                 "forest_area_ha",
