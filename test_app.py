@@ -7,7 +7,7 @@ from folium.plugins import Draw
 from streamlit_folium import st_folium
 from shapely.geometry import shape
 from pathlib import Path
-
+from src.route_screening import analyze_route
 
 # =====================================================
 # 1. PROJECT PATHS
@@ -408,6 +408,12 @@ elif page == "Interactive Map":
                     row_width / 2
                 )
             )
+            # Run land acquisition and forest screening
+            screening_results = analyze_route(
+                pipeline_gdf_metric=pipeline_gdf_metric,
+                row_gdf_metric=row_gdf_metric,
+                data_path=DATA_PATH
+            )
 
             # Convert geometries back to WGS 84 for map display
             row_gdf = row_gdf_metric.to_crs(
@@ -447,43 +453,105 @@ elif page == "Interactive Map":
 
                 st.rerun()
 
-        # Display ROW results
+
+        # Display ROW and screening results
         if row_gdf is not None:
 
-            pipeline_length = (
-                pipeline_gdf_metric.geometry.length.sum()
-                / 1000
-            )
-
-            row_area = (
-                row_gdf_metric.geometry.area.sum()
-                / 10000
-            )
+            summary = screening_results["summary"]
 
             st.divider()
-
             st.subheader("Pipeline ROW Results")
 
             col1, col2 = st.columns(2)
 
             col1.metric(
                 "Pipeline Length",
-                f"{pipeline_length:.2f} km"
+                f"{summary['pipeline_length_km']:.2f} km"
             )
 
             col2.metric(
                 "ROW Area",
-                f"{row_area:.2f} ha"
+                f"{summary['row_area_ha']:.2f} ha"
             )
 
             st.success(
                 "ROW corridor generated successfully!"
             )
 
+            # Land acquisition summary
+            st.divider()
+            st.subheader("Land Acquisition Screening")
+
+            col1, col2 = st.columns(2)
+
+            col1.metric(
+                "Affected Parcels",
+                summary["affected_parcels"]
+            )
+
+            col2.metric(
+                "Potential Acquisition Area",
+                f"{summary['potential_acquisition_area_ha']:.2f} ha"
+            )
+
+            st.dataframe(
+                screening_results["acquisition"][
+                    [
+                        "parcel_area_ha",
+                        "row_area_ha",
+                        "affected_percentage",
+                        "acquisition_status"
+                    ]
+                ],
+                use_container_width=True
+            )
+
+            # Environmental screening summary
+            st.divider()
+            st.subheader("Environmental Screening")
+
+            col1, col2 = st.columns(2)
+
+            col1.metric(
+                "Affected Forest Polygons",
+                summary["affected_forest_polygons"]
+            )
+
+            col2.metric(
+                "Forest Intersection Area",
+                f"{summary['forest_intersection_area_ha']:.2f} ha"
+            )
+
+            col3, col4 = st.columns(2)
+
+            col3.metric(
+                "ROW Within Forest",
+                f"{summary['forest_percentage_of_row']:.2f}%"
+            )
+
+            col4.metric(
+                "Pipeline Length Within Forest",
+                f"{summary['pipeline_length_in_forest_km']:.2f} km"
+            )
+
+            st.dataframe(
+                screening_results["forest_intersection"][
+                    [
+                        "forest_id",
+                        "forest_type",
+                        "forest_area_ha",
+                        "intersection_area_ha",
+                        "affected_percentage"
+                    ]
+                ],
+                use_container_width=True
+            )
+
         else:
 
             st.info(
-                "Draw a pipeline alignment on the map to generate its ROW corridor."
+                "Draw a pipeline alignment on the map to generate "
+                "ROW and spatial screening results."
             )
 
     except Exception as e:
