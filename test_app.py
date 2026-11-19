@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 import geopandas as gpd
 import folium
+import tempfile
 
 from folium.plugins import Draw
 from streamlit_folium import st_folium
@@ -57,6 +58,39 @@ def load_layer(file_path, layer_name):
         file_path,
         layer=layer_name
     )
+
+def prepare_alignment_exports(pipeline_gdf):
+
+    # Convert alignment to metric CRS
+    pipeline_metric = pipeline_gdf.to_crs(epsg=32748).copy()
+
+    # Calculate pipeline length in kilometres
+    pipeline_metric["length_km"] = (
+        pipeline_metric.geometry.length / 1000
+    )
+
+    # Create temporary GeoPackage
+    with tempfile.TemporaryDirectory() as temp_dir:
+
+        gpkg_path = Path(temp_dir) / "proposed_alignment.gpkg"
+
+        pipeline_metric.to_file(
+            gpkg_path,
+            layer="proposed_alignment",
+            driver="GPKG"
+        )
+
+        gpkg_data = gpkg_path.read_bytes()
+
+    # Convert alignment to GeoJSON (WGS 84)
+    pipeline_geojson = (
+        pipeline_gdf
+        .to_crs(epsg=4326)
+        .to_json()
+        .encode("utf-8")
+    )
+
+    return gpkg_data, pipeline_geojson
 
 
 # =====================================================
@@ -552,6 +586,34 @@ elif page == "Alignment Designer":
             st.success(
                 "ROW corridor generated successfully!"
             )
+
+
+            # Export Proposed Pipeline Alignment
+            st.divider()
+            st.subheader("Export Proposed Pipeline Alignment")
+
+            # Generate export files
+            gpkg_data, geojson_data = prepare_alignment_exports(
+                drawn_pipeline_gdf
+            )
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.download_button(
+                    label="Download GeoPackage",
+                    data=gpkg_data,
+                    file_name="proposed_pipeline_alignment.gpkg",
+                    mime="application/geopackage+sqlite3"
+                )
+
+            with col2:
+                st.download_button(
+                    label="Download GeoJSON",
+                    data=geojson_data,
+                    file_name="proposed_pipeline_alignment.geojson",
+                    mime="application/geo+json"
+                )
 
             # Land acquisition summary
             st.divider()
