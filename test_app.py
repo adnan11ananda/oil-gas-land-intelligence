@@ -59,12 +59,13 @@ def load_layer(file_path, layer_name):
         layer=layer_name
     )
 
-def prepare_alignment_exports(pipeline_gdf):
+def prepare_alignment_exports(pipeline_gdf, row_gdf):
 
-    # Convert alignment to metric CRS
+    # Convert both layers to metric CRS
     pipeline_metric = pipeline_gdf.to_crs(epsg=32748).copy()
+    row_metric = row_gdf.to_crs(epsg=32748).copy()
 
-    # Calculate pipeline length in kilometres
+    # Calculate pipeline length
     pipeline_metric["length_km"] = (
         pipeline_metric.geometry.length / 1000
     )
@@ -72,17 +73,26 @@ def prepare_alignment_exports(pipeline_gdf):
     # Create temporary GeoPackage
     with tempfile.TemporaryDirectory() as temp_dir:
 
-        gpkg_path = Path(temp_dir) / "proposed_alignment.gpkg"
+        gpkg_path = Path(temp_dir) / "proposed_pipeline_package.gpkg"
 
+        # Write pipeline alignment
         pipeline_metric.to_file(
             gpkg_path,
-            layer="proposed_alignment",
+            layer="pipeline_alignment",
             driver="GPKG"
+        )
+
+        # Append ROW corridor as a second layer
+        row_metric.to_file(
+            gpkg_path,
+            layer="row_corridor",
+            driver="GPKG",
+            mode="a"
         )
 
         gpkg_data = gpkg_path.read_bytes()
 
-    # Convert alignment to GeoJSON (WGS 84)
+    # Export centerline as GeoJSON
     pipeline_geojson = (
         pipeline_gdf
         .to_crs(epsg=4326)
@@ -588,13 +598,15 @@ elif page == "Alignment Designer":
             )
 
 
+
             # Export Proposed Pipeline Alignment
             st.divider()
             st.subheader("Export Proposed Pipeline Alignment")
 
             # Generate export files
             gpkg_data, geojson_data = prepare_alignment_exports(
-                drawn_pipeline_gdf
+                drawn_pipeline_gdf,
+                row_gdf
             )
 
             col1, col2 = st.columns(2)
@@ -603,7 +615,7 @@ elif page == "Alignment Designer":
                 st.download_button(
                     label="Download GeoPackage",
                     data=gpkg_data,
-                    file_name="proposed_pipeline_alignment.gpkg",
+                    file_name="proposed_pipeline_package.gpkg",
                     mime="application/geopackage+sqlite3"
                 )
 
