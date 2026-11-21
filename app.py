@@ -465,122 +465,122 @@ if page == "Overview":
 
     st.divider()
 
-    # =====================================================
-    # 1. CURRENT SCREENING STATUS
-    # =====================================================
+    # # =====================================================
+    # # 1. CURRENT SCREENING STATUS
+    # # =====================================================
 
-    st.subheader("Current Project Screening")
+    # st.subheader("Current Project Screening")
 
-    screening_results = st.session_state.active_screening_results
-    pipeline_gdf = st.session_state.active_pipeline_gdf
+    # screening_results = st.session_state.active_screening_results
+    # pipeline_gdf = st.session_state.active_pipeline_gdf
 
-    if screening_results is not None and pipeline_gdf is not None:
+    # if screening_results is not None and pipeline_gdf is not None:
 
-        summary = screening_results["summary"]
+    #     summary = screening_results["summary"]
 
-        st.success(
-            f"Screening results available for pipeline: "
-            f"{st.session_state.active_pipeline_id}"
-        )
+    #     st.success(
+    #         f"Screening results available for pipeline: "
+    #         f"{st.session_state.active_pipeline_id}"
+    #     )
 
-        # KPI row 1
-        col1, col2, col3, col4 = st.columns(4)
+    #     # KPI row 1
+    #     col1, col2, col3, col4 = st.columns(4)
 
-        col1.metric(
-            "Pipeline Length",
-            f'{summary["pipeline_length_km"]:.2f} km'
-        )
+    #     col1.metric(
+    #         "Pipeline Length",
+    #         f'{summary["pipeline_length_km"]:.2f} km'
+    #     )
 
-        col2.metric(
-            "ROW Width",
-            f'{st.session_state.active_row_width:.1f} m'
-        )
+    #     col2.metric(
+    #         "ROW Width",
+    #         f'{st.session_state.active_row_width:.1f} m'
+    #     )
 
-        col3.metric(
-            "Total ROW Area",
-            f'{summary["row_area_ha"]:.2f} ha'
-        )
+    #     col3.metric(
+    #         "Total ROW Area",
+    #         f'{summary["row_area_ha"]:.2f} ha'
+    #     )
 
-        col4.metric(
-            "Affected Parcels",
-            f'{summary["affected_parcels"]}'
-        )
+    #     col4.metric(
+    #         "Affected Parcels",
+    #         f'{summary["affected_parcels"]}'
+    #     )
 
-        # KPI row 2
-        col1, col2, col3, col4 = st.columns(4)
+    #     # KPI row 2
+    #     col1, col2, col3, col4 = st.columns(4)
 
-        col1.metric(
-            "Potential Acquisition",
-            f'{summary["potential_acquisition_area_ha"]:.2f} ha'
-        )
+    #     col1.metric(
+    #         "Potential Acquisition",
+    #         f'{summary["potential_acquisition_area_ha"]:.2f} ha'
+    #     )
 
-        col2.metric(
-            "Affected Forest Areas",
-            f'{summary["affected_forest_polygons"]}'
-        )
+    #     col2.metric(
+    #         "Affected Forest Areas",
+    #         f'{summary["affected_forest_polygons"]}'
+    #     )
 
-        col3.metric(
-            "Forest Intersection",
-            f'{summary["forest_intersection_area_ha"]:.2f} ha'
-        )
+    #     col3.metric(
+    #         "Forest Intersection",
+    #         f'{summary["forest_intersection_area_ha"]:.2f} ha'
+    #     )
 
-        col4.metric(
-            "ROW Within Forest",
-            f'{summary["forest_percentage_of_row"]:.2f}%'
-        )
+    #     col4.metric(
+    #         "ROW Within Forest",
+    #         f'{summary["forest_percentage_of_row"]:.2f}%'
+    #     )
 
-        st.caption(
-            "Metrics represent the latest alignment analyzed in "
-            "the Alignment Designer."
-        )
+    #     st.caption(
+    #         "Metrics represent the latest alignment analyzed in "
+    #         "the Alignment Designer."
+    #     )
 
-        # Screening summary
-        st.divider()
-        st.subheader("Screening Highlights")
+    #     # Screening summary
+    #     st.divider()
+    #     st.subheader("Screening Highlights")
 
-        col1, col2 = st.columns(2)
+    #     col1, col2 = st.columns(2)
 
-        with col1:
-            st.markdown("#### Land Acquisition")
+    #     with col1:
+    #         st.markdown("#### Land Acquisition")
 
-            st.write(
-                f'**{summary["affected_parcels"]}** land parcels '
-                "intersect the proposed ROW."
-            )
+    #         st.write(
+    #             f'**{summary["affected_parcels"]}** land parcels '
+    #             "intersect the proposed ROW."
+    #         )
 
-            st.write(
-                f'Potential acquisition area: '
-                f'**{summary["potential_acquisition_area_ha"]:.2f} ha**'
-            )
+    #         st.write(
+    #             f'Potential acquisition area: '
+    #             f'**{summary["potential_acquisition_area_ha"]:.2f} ha**'
+    #         )
 
-        with col2:
-            st.markdown("#### Environmental Screening")
+    #     with col2:
+    #         st.markdown("#### Environmental Screening")
 
-            st.write(
-                f'**{summary["affected_forest_polygons"]}** forest '
-                "polygons intersect the proposed ROW."
-            )
+    #         st.write(
+    #             f'**{summary["affected_forest_polygons"]}** forest '
+    #             "polygons intersect the proposed ROW."
+    #         )
 
-            st.write(
-                f'Forest intersection area: '
-                f'**{summary["forest_intersection_area_ha"]:.2f} ha**'
-            )
+    #         st.write(
+    #             f'Forest intersection area: '
+    #             f'**{summary["forest_intersection_area_ha"]:.2f} ha**'
+    #         )
 
-    else:
+    # else:
 
-        st.info(
-            "No pipeline screening results are available yet. "
-            "Open Alignment Designer to draw or import a proposed "
-            "pipeline alignment and run the spatial analysis."
-        )
+    #     st.info(
+    #         "No pipeline screening results are available yet. "
+    #         "Open Alignment Designer to draw or import a proposed "
+    #         "pipeline alignment and run the spatial analysis."
+    #     )
 
-        col1, col2, col3 = st.columns(3)
+    #     col1, col2, col3 = st.columns(3)
 
-        col1.metric("Pipeline Length", "—")
-        col2.metric("Affected Parcels", "—")
-        col3.metric("Potential Acquisition", "—")
+    #     col1.metric("Pipeline Length", "—")
+    #     col2.metric("Affected Parcels", "—")
+    #     col3.metric("Potential Acquisition", "—")
 
-    st.divider()
+    # st.divider()
 
     # =====================================================
     # 2. APPLICATION WORKFLOW
@@ -894,6 +894,57 @@ elif page == "Alignment Designer":
             )
 
 
+            # Current Project Screening
+            st.divider()
+            st.subheader("Current Project Screening")
+
+            st.success(
+                f"Screening results available for pipeline: {pipeline_id}"
+            )
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            col1.metric(
+                "Pipeline Length",
+                f"{summary['pipeline_length_km']:.2f} km"
+            )
+            col2.metric(
+                "ROW Width",
+                f"{row_width:.1f} m"
+            )
+            col3.metric(
+                "Total ROW Area",
+                f"{summary['row_area_ha']:.2f} ha"
+            )
+            col4.metric(
+                "Affected Parcels",
+                summary["affected_parcels"]
+            )
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            col1.metric(
+                "Potential Acquisition",
+                f"{summary['potential_acquisition_area_ha']:.2f} ha"
+            )
+            col2.metric(
+                "Affected Forest Areas",
+                summary["affected_forest_polygons"]
+            )
+            col3.metric(
+                "Forest Intersection",
+                f"{summary['forest_intersection_area_ha']:.2f} ha"
+            )
+            col4.metric(
+                "ROW Within Forest",
+                f"{summary['forest_percentage_of_row']:.2f}%"
+            )
+
+            st.caption(
+                "Metrics represent the latest alignment analyzed "
+                "in the Alignment Designer."
+            )
+
 
             # Export Proposed Pipeline Alignment
             st.divider()
@@ -1076,11 +1127,6 @@ elif page == "Alignment Designer":
 
             st.subheader("Proposed ROW Land Acquisition Preliminary Report")
 
-            st.dataframe(
-                consolidated_report,
-                use_container_width=True,
-                hide_index=True
-            )
 
             st.download_button(
                 label="Download Preliminary Report (CSV)",
