@@ -32,12 +32,12 @@ def row(pipeline):
     return create_row_corridor(pipeline, row_width_m=20)
 
 
-def make_parcels(boxes):
+def make_parcels(boxes, land_status="Unregistered"):
     return gpd.GeoDataFrame(
         {
             "parcel_id": [f"P{i}" for i in range(len(boxes))],
             "owner_type": "Private",
-            "land_status": "Unregistered",
+            "land_status": land_status,
         },
         geometry=boxes,
         crs=UTM,
@@ -170,7 +170,9 @@ def test_route_missing_every_layer_returns_zero_results(pipeline, row):
     result = analyze_route(pipeline, row, parcels, forests)
 
     assert result["summary"]["affected_parcels"] == 0
-    assert result["summary"]["potential_acquisition_area_ha"] == 0
+    # ROW outside every parcel still counts as potential acquisition
+    assert result["summary"]["potential_acquisition_area_ha"] == pytest.approx(2.0)
+    assert result["summary"]["acquired_parcel_area_ha"] == 0
     assert result["summary"]["affected_forest_polygons"] == 0
     assert result["summary"]["forest_percentage_of_row"] == 0
 
@@ -233,3 +235,50 @@ def test_summary_table_has_expected_shape(pipeline, row):
     ]
 
     assert len(table) == 8
+
+def test_acquired_land_is_excluded_from_potential_acquisition(pipeline, row):
+
+    parcels = make_parcels(
+        [box(-50, -50, 500, 50), box(500, -50, 1050, 50)],
+        land_status=["Acquired", "Unregistered"],
+    )
+
+    forests = make_forests([box(5000, 5000, 5100, 5100)])
+
+    result = analyze_route(pipeline, row, parcels, forests)
+    summary = result["summary"]
+    acquisition = result["acquisition"].set_index("parcel_id")
+
+    assert summary["row_area_ha"] == pytest.approx(2.0)
+    assert summary["acquired_parcel_area_ha"] == pytest.approx(1.0)
+    assert summary["potential_acquisition_area_ha"] == pytest.approx(1.0)
+    assert acquisition.loc["P0", "acquisition_status"] == "Already Acquired"
+    assert acquisition.loc["P1", "acquisition_status"] == "Potential Acquisition"
+
+
+@pytest.mark.parametrize(
+    "status", ["acquired", "ACQUIRED", " Acquired ", "Fully Acquired"]
+)
+def test_acquired_status_ignores_case_and_spaces(pipeline, row, status):
+
+    parcels = make_parcels([box(-50, -50, 1050, 50)], land_status=status)
+    forests = make_forests([box(5000, 5000, 5100, 5100)])
+
+    summary = analyze_route(pipeline, row, parcels, forests)["summary"]
+
+    assert summary["acquired_parcel_area_ha"] == pytest.approx(2.0)
+    assert summary["potential_acquisition_area_ha"] == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize(
+    "status", ["Leased", "Pending Acquisition", "Unregistered"]
+)
+def test_other_statuses_remain_potential_acquisition(pipeline, row, status):
+
+    parcels = make_parcels([box(-50, -50, 1050, 50)], land_status=status)
+    forests = make_forests([box(5000, 5000, 5100, 5100)])
+
+    summary = analyze_route(pipeline, row, parcels, forests)["summary"]
+
+    assert summary["acquired_parcel_area_ha"] == 0
+    assert summary["potential_acquisition_area_ha"] == pytest.approx(2.0)
