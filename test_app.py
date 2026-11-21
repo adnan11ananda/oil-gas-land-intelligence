@@ -10,6 +10,11 @@ from streamlit_folium import st_folium
 from shapely.geometry import shape
 from pathlib import Path
 from src.route_screening import analyze_route
+from src.alignment_import import (
+    AlignmentImportError,
+    load_alignment,
+    overlaps_study_area
+)
 
 # =====================================================
 # 1. PROJECT PATHS
@@ -30,6 +35,13 @@ SCREENING_PATH = (
     / "reports"
     / "proposed_pipeline_screening.gpkg"
 )
+
+# CRS choices offered when an imported file has no CRS
+ASSUMED_CRS_OPTIONS = {
+    "Reject files without a CRS": None,
+    "EPSG:4326 (WGS 84, lon/lat)": "EPSG:4326",
+    "EPSG:32748 (WGS 84 / UTM 48S)": "EPSG:32748",
+}
 
 
 # =====================================================
@@ -57,6 +69,15 @@ def load_layer(file_path, layer_name):
     return gpd.read_file(
         file_path,
         layer=layer_name
+    )
+
+@st.cache_data(show_spinner=False)
+def parse_alignment_upload(file_bytes, file_name, assume_crs):
+
+    return load_alignment(
+        file_bytes,
+        file_name,
+        assume_crs=assume_crs
     )
 
 def prepare_alignment_exports(
@@ -145,7 +166,9 @@ def create_gis_map(
     row_gdf=None,
     drawn_pipeline_gdf=None,
     acquisition_gdf=None,
-    forest_intersection_gdf=None
+    forest_intersection_gdf=None,
+    show_draw_tools=True,
+    fit_to_alignment=False
 ): 
 
     # Load GIS layers
@@ -276,7 +299,7 @@ def create_gis_map(
 
         folium.GeoJson(
             drawn_pipeline_gdf,
-            name="User Drawn Pipeline",
+            name="Proposed Pipeline Alignment",
             style_function=lambda feature: {
                 "color": "#dc2626",
                 "weight": 4
@@ -332,25 +355,33 @@ def create_gis_map(
         ).add_to(m)
 
     # Pipeline drawing tools
-    Draw(
-        export=False,
-        position="topleft",
-        draw_options={
-            "polyline": True,
-            "polygon": False,
-            "rectangle": False,
-            "circle": False,
-            "circlemarker": False,
-            "marker": False
-        },
-        edit_options={
-            "edit": True,
-            "remove": True
-        }
-    ).add_to(m)
+    if show_draw_tools:
+        Draw(
+            export=False,
+            position="topleft",
+            draw_options={
+                "polyline": True,
+                "polygon": False,
+                "rectangle": False,
+                "circle": False,
+                "circlemarker": False,
+                "marker": False
+            },
+            edit_options={
+                "edit": True,
+                "remove": True
+            }
+        ).add_to(m)
 
     # Layer control
     folium.LayerControl().add_to(m)
+
+    # Zoom to an imported alignment
+    if fit_to_alignment and drawn_pipeline_gdf is not None:
+
+        minx, miny, maxx, maxy = drawn_pipeline_gdf.total_bounds
+
+        m.fit_bounds([[miny, minx], [maxy, maxx]])
 
     return m
 
@@ -506,6 +537,70 @@ elif page == "Alignment Designer":
         f"Buffer distance: {row_width / 2:.1f} metres on each side"
     )
 
+    # Alignment source: draw on the map or import a file
+    alignment_source = st.radio(
+        "Alignment source",
+        ["Draw on map", "Import file"],
+        horizontal=True,
+        key="alignment_source"
+    )
+
+    imported_line = None
+    imported_name = None
+
+    if alignment_source == "Import file":
+
+        st.caption(
+            "Upload one continuous polyline: GeoJSON, GeoPackage, "
+            "zipped Shapefile or KML."
+        )
+
+        uploaded_file = st.file_uploader(
+            "Proposed alignment file",
+            type=["geojson", "json", "gpkg", "zip", "kml"]
+        )
+
+        assumed_crs_label = st.selectbox(
+            "If the file has no CRS, assume",
+            list(ASSUMED_CRS_OPTIONS)
+        )
+
+        if uploaded_file is not None:
+
+            try:
+
+                imported = parse_alignment_upload(
+                    uploaded_file.getvalue(),
+                    uploaded_file.name,
+                    ASSUMED_CRS_OPTIONS[assumed_crs_label]
+                )
+
+                study_area = load_layer(DATA_PATH, "study_area")
+
+                if not overlaps_study_area(imported.line, study_area):
+
+                    st.error(
+                        "The alignment does not intersect the study "
+                        "area. Check the file's CRS."
+                    )
+
+                else:
+
+                    imported_line = imported.line
+                    imported_name = Path(uploaded_file.name).stem
+
+                    st.success(
+                        f"Imported '{uploaded_file.name}' "
+                        f"(source CRS: {imported.source_crs})."
+                    )
+
+                    for note in imported.notes:
+                        st.info(note)
+
+            except AlignmentImportError as e:
+
+                st.error(str(e))
+
     try:
 
         # Initialize output layers
@@ -514,8 +609,18 @@ elif page == "Alignment Designer":
         pipeline_gdf_metric = None
         screening_results = None
 
-        # Process stored pipeline drawing
-        if st.session_state.drawn_pipeline is not None:
+        # Resolve the alignment: imported file or map drawing
+        line = None
+        pipeline_id = "PROP-PL-002"
+
+        if alignment_source == "Import file":
+
+            line = imported_line
+
+            if imported_name:
+                pipeline_id = imported_name
+
+        elif st.session_state.drawn_pipeline is not None:
 
             line = shape(
                 st.session_state.drawn_pipeline["geometry"]
@@ -526,14 +631,16 @@ elif page == "Alignment Designer":
                     "Please draw a pipeline using the polyline tool."
                 )
 
+        if line is not None:
+
             if line.is_empty or not line.is_valid or line.length == 0:
                 raise ValueError(
-                    "The drawn pipeline geometry is invalid or empty."
+                    "The pipeline geometry is invalid or empty."
                 )
 
             # Create pipeline GeoDataFrame in WGS 84
             pipeline_gdf = gpd.GeoDataFrame(
-                {"pipeline_id": ["PROP-PL-002"]},
+                {"pipeline_id": [pipeline_id]},
                 geometry=[line],
                 crs="EPSG:4326"
             )
@@ -578,8 +685,10 @@ elif page == "Alignment Designer":
                 screening_results["forest_intersection"]
                 if screening_results is not None
                 else None
-            )
-)
+            ),
+            show_draw_tools=(alignment_source == "Draw on map"),
+            fit_to_alignment=(alignment_source == "Import file")
+        )
 
         # Display map
         map_data = st_folium(
@@ -593,7 +702,7 @@ elif page == "Alignment Designer":
         # Capture newly drawn pipeline
         drawings = map_data.get("all_drawings")
 
-        if drawings:
+        if alignment_source == "Draw on map" and drawings:
 
             latest_drawing = drawings[-1]
 
@@ -906,6 +1015,10 @@ elif page == "Alignment Designer":
         else:
 
             st.info(
+                "Upload an alignment file above to generate "
+                "ROW and spatial screening results."
+                if alignment_source == "Import file"
+                else
                 "Draw a pipeline alignment on the map to generate "
                 "ROW and spatial screening results."
             )
