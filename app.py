@@ -62,6 +62,20 @@ st.set_page_config(
 if "drawn_pipeline" not in st.session_state:
     st.session_state.drawn_pipeline = None
 
+# Shared screening outputs remain available when users navigate between pages.
+for state_key, default_value in {
+    "active_pipeline_gdf": None,
+    "active_row_gdf": None,
+    "active_screening_results": None,
+    "active_row_width": None,
+    "active_pipeline_id": None,
+    "active_acquisition_report": None,
+    "active_forest_report": None,
+    "active_consolidated_report": None,
+}.items():
+    if state_key not in st.session_state:
+        st.session_state[state_key] = default_value
+
 
 # =====================================================
 # 3. DATA LOADING FUNCTIONS
@@ -416,7 +430,7 @@ page = st.sidebar.radio(
     "Overview",
     "Alignment Designer",
     "Land Acquisition",
-    "Environmental Screening"
+    "Forest Area Overlay Report",
 ]
 )
 
@@ -431,67 +445,188 @@ st.sidebar.caption(
 # 7. OVERVIEW DASHBOARD
 # =====================================================
 
+
 if page == "Overview":
 
-    st.header("Proposed Pipeline Alignment & Screening")
+    st.header("Oil & Gas Land Intelligence")
+    st.caption(
+        "Geospatial Land Management | Pipeline ROW Design | "
+        "Land Acquisition & Environmental Screening"
+    )
 
-    st.write(
+    st.markdown(
         """
-        This application is designed to support preliminary
-        geospatial screening of proposed Oil & Gas pipeline routes.
-
-        Users can draw a proposed pipeline alignment, define the
-        Right of Way (ROW) width, and automatically identify
-        potentially affected land parcels and forest areas.
+        This platform supports preliminary geospatial screening
+        of proposed Oil & Gas pipeline routes. It combines pipeline
+        alignment design, Right of Way (ROW) generation, land
+        acquisition screening, and environmental overlay analysis.
         """
     )
 
     st.divider()
+
+    # =====================================================
+    # 1. CURRENT SCREENING STATUS
+    # =====================================================
+
+    st.subheader("Current Project Screening")
+
+    screening_results = st.session_state.active_screening_results
+    pipeline_gdf = st.session_state.active_pipeline_gdf
+
+    if screening_results is not None and pipeline_gdf is not None:
+
+        summary = screening_results["summary"]
+
+        st.success(
+            f"Screening results available for pipeline: "
+            f"{st.session_state.active_pipeline_id}"
+        )
+
+        # KPI row 1
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric(
+            "Pipeline Length",
+            f'{summary["pipeline_length_km"]:.2f} km'
+        )
+
+        col2.metric(
+            "ROW Width",
+            f'{st.session_state.active_row_width:.1f} m'
+        )
+
+        col3.metric(
+            "Total ROW Area",
+            f'{summary["row_area_ha"]:.2f} ha'
+        )
+
+        col4.metric(
+            "Affected Parcels",
+            f'{summary["affected_parcels"]}'
+        )
+
+        # KPI row 2
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric(
+            "Potential Acquisition",
+            f'{summary["potential_acquisition_area_ha"]:.2f} ha'
+        )
+
+        col2.metric(
+            "Affected Forest Areas",
+            f'{summary["affected_forest_polygons"]}'
+        )
+
+        col3.metric(
+            "Forest Intersection",
+            f'{summary["forest_intersection_area_ha"]:.2f} ha'
+        )
+
+        col4.metric(
+            "ROW Within Forest",
+            f'{summary["forest_percentage_of_row"]:.2f}%'
+        )
+
+        st.caption(
+            "Metrics represent the latest alignment analyzed in "
+            "the Alignment Designer."
+        )
+
+        # Screening summary
+        st.divider()
+        st.subheader("Screening Highlights")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("#### Land Acquisition")
+
+            st.write(
+                f'**{summary["affected_parcels"]}** land parcels '
+                "intersect the proposed ROW."
+            )
+
+            st.write(
+                f'Potential acquisition area: '
+                f'**{summary["potential_acquisition_area_ha"]:.2f} ha**'
+            )
+
+        with col2:
+            st.markdown("#### Environmental Screening")
+
+            st.write(
+                f'**{summary["affected_forest_polygons"]}** forest '
+                "polygons intersect the proposed ROW."
+            )
+
+            st.write(
+                f'Forest intersection area: '
+                f'**{summary["forest_intersection_area_ha"]:.2f} ha**'
+            )
+
+    else:
+
+        st.info(
+            "No pipeline screening results are available yet. "
+            "Open Alignment Designer to draw or import a proposed "
+            "pipeline alignment and run the spatial analysis."
+        )
+
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric("Pipeline Length", "—")
+        col2.metric("Affected Parcels", "—")
+        col3.metric("Potential Acquisition", "—")
+
+    st.divider()
+
+    # =====================================================
+    # 2. APPLICATION WORKFLOW
+    # =====================================================
 
     st.subheader("Application Workflow")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.markdown("### 1. Alignment Design")
+        st.markdown("#### 1. Alignment Design")
         st.write(
             """
-            - Draw a proposed pipeline route
-            - Define pipeline ROW width
+            - Draw or import a pipeline alignment
+            - Define the required ROW width
             - Generate the ROW corridor
             """
         )
 
     with col2:
-        st.markdown("### 2. Land Acquisition Screening")
+        st.markdown("#### 2. Land Acquisition")
         st.write(
             """
             - Identify affected land parcels
-            - Calculate potential acquisition areas
-            - Review land ownership information
+            - Calculate ROW intersection areas
+            - Review ownership information
             """
         )
 
     with col3:
-        st.markdown("### 3. Environmental Screening")
+        st.markdown("#### 3. Forest Area Overlay")
         st.write(
             """
             - Identify forest area intersections
             - Calculate affected forest areas
-            - Assess potential environmental constraints
+            - Review potential environmental constraints
             """
         )
 
     st.divider()
 
-    st.subheader("Available Reference Layers")
+    # =====================================================
+    # 3. REFERENCE DATA
+    # =====================================================
 
-    st.write(
-        """
-        The application uses existing geospatial information
-        as reference data during the screening process:
-        """
-    )
+    st.subheader("Available Reference Layers")
 
     col1, col2 = st.columns(2)
 
@@ -500,26 +635,36 @@ if page == "Overview":
             """
             - **Land Parcels:** Synthetic cadastral boundaries
             - **Existing Pipelines:** Existing pipeline network
+            - **Production Facilities:** Oil & Gas facilities
             """
         )
 
     with col2:
         st.markdown(
             """
-            - **Production Facilities:** Existing Oil & Gas facilities
             - **Forest Areas:** Environmental reference polygons
+            - **Study Area:** Project analysis boundary
+            - **Proposed Alignment:** User-drawn or imported route
             """
         )
 
     st.divider()
 
+    # =====================================================
+    # 4. DATA DISCLAIMER
+    # =====================================================
+
     st.caption(
-        "Portfolio Project | All spatial data used in this "
-        "demonstration is synthetic and intended for "
-        "illustrative purposes only."
+        """
+        **Portfolio Demonstration**
+
+        All spatial data used in this application is synthetic
+        and intended for illustrative purposes only. Screening
+        results are preliminary spatial indicators and do not
+        represent legal land acquisition decisions, approved
+        engineering designs, or formal environmental assessments.
+        """
     )
-
-
 
 # =====================================================
 # 8. INTERACTIVE GIS MAP
@@ -779,23 +924,7 @@ elif page == "Alignment Designer":
                     mime="application/geo+json"
                 )
 
-            # Land acquisition summary
-            st.divider()
-            st.subheader("Land Acquisition Screening")
-
-            col1, col2 = st.columns(2)
-
-            col1.metric(
-                "Affected Parcels",
-                summary["affected_parcels"]
-            )
-
-            col2.metric(
-                "Potential Acquisition Area",
-                f"{summary['potential_acquisition_area_ha']:.2f} ha"
-            )
-
-            # Prepare land acquisition report
+            # Prepare detailed reports for their dedicated pages.
             acquisition_report = screening_results["acquisition"][
                 [
                     "parcel_id",
@@ -809,68 +938,16 @@ elif page == "Alignment Designer":
                 ]
             ].copy()
 
-            # Round numerical values
             acquisition_report["parcel_area_ha"] = (
                 acquisition_report["parcel_area_ha"].round(4)
             )
-
             acquisition_report["row_area_ha"] = (
                 acquisition_report["row_area_ha"].round(4)
             )
-
             acquisition_report["affected_percentage"] = (
                 acquisition_report["affected_percentage"].round(2)
             )
 
-            # Display report
-            st.dataframe(
-                acquisition_report,
-                use_container_width=True,
-                hide_index=True
-            )
-
-            # Export Land Acquisition Report
-            acquisition_csv = acquisition_report.to_csv(
-                index=False,
-                encoding="utf-8-sig"
-            )
-
-            st.download_button(
-                label="Download Land Acquisition Report (CSV)",
-                data=acquisition_csv,
-                file_name="land_acquisition_screening.csv",
-                mime="text/csv"
-            )
-
-            # Environmental screening summary
-            st.divider()
-            st.subheader("Environmental Screening")
-
-            col1, col2 = st.columns(2)
-
-            col1.metric(
-                "Affected Forest Polygons",
-                summary["affected_forest_polygons"]
-            )
-
-            col2.metric(
-                "Forest Intersection Area",
-                f"{summary['forest_intersection_area_ha']:.2f} ha"
-            )
-
-            col3, col4 = st.columns(2)
-
-            col3.metric(
-                "ROW Within Forest",
-                f"{summary['forest_percentage_of_row']:.2f}%"
-            )
-
-            col4.metric(
-                "Pipeline Length Within Forest",
-                f"{summary['pipeline_length_in_forest_km']:.2f} km"
-            )
-
-            # Prepare Environmental Screening Report
             forest_report = screening_results["forest_intersection"][
                 [
                     "forest_id",
@@ -880,6 +957,23 @@ elif page == "Alignment Designer":
                     "affected_percentage"
                 ]
             ].copy()
+
+            for column in [
+                "forest_area_ha",
+                "intersection_area_ha",
+                "affected_percentage"
+            ]:
+                forest_report[column] = forest_report[column].round(4)
+
+            # Persist the latest analysis so the detailed pages can use
+            # exactly the same alignment and screening results.
+            st.session_state.active_pipeline_gdf = drawn_pipeline_gdf
+            st.session_state.active_row_gdf = row_gdf
+            st.session_state.active_screening_results = screening_results
+            st.session_state.active_row_width = row_width
+            st.session_state.active_pipeline_id = pipeline_id
+            st.session_state.active_acquisition_report = acquisition_report
+            st.session_state.active_forest_report = forest_report
 
             # =====================================================
             # CONSOLIDATED PIPELINE SCREENING REPORT
@@ -978,7 +1072,9 @@ elif page == "Alignment Designer":
             )
 
             st.divider()
-            st.subheader("Consolidated Project Report")
+            st.session_state.active_consolidated_report = consolidated_report
+
+            st.subheader("Proposed ROW Land Acquisition Preliminary Report")
 
             st.dataframe(
                 consolidated_report,
@@ -987,36 +1083,9 @@ elif page == "Alignment Designer":
             )
 
             st.download_button(
-                label="Download Consolidated Screening Report",
+                label="Download Preliminary Report (CSV)",
                 data=consolidated_csv,
-                file_name="consolidated_pipeline_screening.csv",
-                mime="text/csv"
-            )
-            # Round numerical values
-            for column in [
-                "forest_area_ha",
-                "intersection_area_ha",
-                "affected_percentage"
-            ]:
-                forest_report[column] = forest_report[column].round(4)
-
-            # Display report
-            st.dataframe(
-                forest_report,
-                use_container_width=True,
-                hide_index=True
-            )
-
-            # Export Environmental Screening Report
-            forest_csv = forest_report.to_csv(
-                index=False,
-                encoding="utf-8-sig"
-            )
-
-            st.download_button(
-                label="Download Environmental Screening Report (CSV)",
-                data=forest_csv,
-                file_name="environmental_screening_report.csv",
+                file_name="proposed_row_land_acquisition_preliminary_report.csv",
                 mime="text/csv"
             )
 
@@ -1044,21 +1113,158 @@ elif page == "Alignment Designer":
 
 elif page == "Land Acquisition":
 
-    st.header("Land Acquisition Analysis")
+    st.header("Land Acquisition Screening")
 
-    st.info(
-        "Parcel analysis and acquisition tables will be added here."
-    )
+    screening_results = st.session_state.active_screening_results
+    pipeline_gdf = st.session_state.active_pipeline_gdf
+    row_gdf = st.session_state.active_row_gdf
+    acquisition_report = st.session_state.active_acquisition_report
+
+    if (
+        screening_results is None
+        or acquisition_report is None
+        or pipeline_gdf is None
+        or row_gdf is None
+    ):
+        st.info(
+            "No screening results are available yet. Go to Alignment "
+            "Designer and import or draw a proposed pipeline alignment "
+            "to generate the land acquisition screening."
+        )
+    else:
+        summary = screening_results["summary"]
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Affected Parcels", summary["affected_parcels"])
+        col2.metric(
+            "Potential Acquisition Area",
+            f"{summary['potential_acquisition_area_ha']:.2f} ha"
+        )
+        col3.metric(
+            "ROW Width",
+            f"{st.session_state.active_row_width:.1f} m"
+        )
+
+        st.caption(
+            f"Pipeline: {st.session_state.active_pipeline_id} | "
+            "Preliminary spatial screening only."
+        )
+
+        st.subheader("Affected Land Parcels Map")
+        acquisition_map = create_gis_map(
+            row_gdf=row_gdf,
+            drawn_pipeline_gdf=pipeline_gdf,
+            acquisition_gdf=screening_results["acquisition"],
+            show_draw_tools=False,
+            fit_to_alignment=True
+        )
+        st_folium(
+            acquisition_map,
+            width=None,
+            height=550,
+            use_container_width=True,
+            key="land_acquisition_map"
+        )
+
+        st.subheader("Land Acquisition Screening Report")
+        st.dataframe(
+            acquisition_report,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        acquisition_csv = acquisition_report.to_csv(
+            index=False,
+            encoding="utf-8-sig"
+        )
+        st.download_button(
+            label="Download Land Acquisition Report (CSV)",
+            data=acquisition_csv,
+            file_name="land_acquisition_screening.csv",
+            mime="text/csv"
+        )
 
 
 # =====================================================
 # 10. ENVIRONMENTAL SCREENING
 # =====================================================
 
-elif page == "Environmental Screening":
+elif page == "Forest Area Overlay Report":
 
-    st.header("Environmental Screening")
+    st.header("Forest Area Overlay Report")
 
-    st.info(
-        "Forest impact analysis will be added here."
-    )
+    screening_results = st.session_state.active_screening_results
+    pipeline_gdf = st.session_state.active_pipeline_gdf
+    row_gdf = st.session_state.active_row_gdf
+    forest_report = st.session_state.active_forest_report
+
+    if (
+        screening_results is None
+        or forest_report is None
+        or pipeline_gdf is None
+        or row_gdf is None
+    ):
+        st.info(
+            "No environmental screening results are available yet. "
+            "Go to Alignment Designer and import or draw a proposed "
+            "pipeline alignment to generate the forest area overlay report."
+        )
+    else:
+        summary = screening_results["summary"]
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric(
+            "Affected Forest Polygons",
+            summary["affected_forest_polygons"]
+        )
+        col2.metric(
+            "Forest Intersection Area",
+            f"{summary['forest_intersection_area_ha']:.4f} ha"
+        )
+        col3.metric(
+            "ROW Within Forest",
+            f"{summary['forest_percentage_of_row']:.2f}%"
+        )
+        col4.metric(
+            "Pipeline Length Within Forest",
+            f"{summary['pipeline_length_in_forest_km']:.2f} km"
+        )
+
+        st.caption(
+            f"Pipeline: {st.session_state.active_pipeline_id} | "
+            "Preliminary spatial overlay; not a formal environmental approval."
+        )
+
+        st.subheader("Forest Area Overlay Map")
+        forest_map = create_gis_map(
+            row_gdf=row_gdf,
+            drawn_pipeline_gdf=pipeline_gdf,
+            forest_intersection_gdf=screening_results["forest_intersection"],
+            show_draw_tools=False,
+            fit_to_alignment=True
+        )
+        st_folium(
+            forest_map,
+            width=None,
+            height=550,
+            use_container_width=True,
+            key="forest_screening_map"
+        )
+
+        st.subheader("Forest Area Overlay Report")
+        st.dataframe(
+            forest_report,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        forest_csv = forest_report.to_csv(
+            index=False,
+            encoding="utf-8-sig"
+        )
+        st.download_button(
+            label="Download Forest Area Overlay Report (CSV)",
+            data=forest_csv,
+            file_name="forest_area_overlay_report.csv",
+            mime="text/csv"
+        )

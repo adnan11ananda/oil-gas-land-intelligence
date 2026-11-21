@@ -73,8 +73,9 @@ def _read_zipped_shapefile(zip_path: Path, work_dir: Path):
 
             if total_bytes > MAX_UNZIPPED_MB * 1024 * 1024:
                 raise AlignmentImportError(
-                    "No line features found in the GeoPackage. "
-                    "The alignment must be a polyline."
+                    f"Extracted Shapefile contents exceed the "
+                    f"{MAX_UNZIPPED_MB} MB uncompressed size limit. "
+                    "Reduce the archive size and try again."
                 )
 
             # ZipFile.extractall strips absolute paths and '..'
