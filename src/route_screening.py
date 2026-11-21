@@ -199,7 +199,34 @@ def analyze_route(
         * 100
     )
 
-    acquisition["acquisition_status"] = "Potential Acquisition"
+    # Only explicitly acquired land is excluded from potential acquisition.
+    acquired_statuses = {
+        "acquired",
+        "fully acquired",
+        "already acquired",
+    }
+
+    acquisition["_normalized_land_status"] = (
+        acquisition["land_status"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.casefold()
+    )
+
+    acquisition["acquisition_status"] = acquisition[
+        "_normalized_land_status"
+    ].apply(
+        lambda status: (
+            "Already Acquired"
+            if status in acquired_statuses
+            else "Potential Acquisition"
+        )
+    )
+
+    acquisition = acquisition.drop(
+        columns=["_normalized_land_status"]
+    )
 
     acquisition = acquisition.sort_values(
         "row_area_ha",
@@ -266,13 +293,38 @@ def analyze_route(
 
     total_row_area_ha = row_union.area / SQM_PER_HA
 
+    # Calculate the area of the ROW that overlaps acquired parcels.
+    # Dissolving acquired parcel geometry prevents double-counting if
+    # parcel polygons overlap. ROW outside all parcel polygons remains
+    # potential acquisition by definition (Total ROW - Acquired ROW).
+    acquired_parcels = parcels[
+        parcels["land_status"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.casefold()
+        .isin({"acquired", "fully acquired", "already acquired"})
+    ]
+
+    if acquired_parcels.empty:
+        acquired_row_area_ha = 0.0
+    else:
+        acquired_union = acquired_parcels.geometry.union_all()
+        acquired_row_area_ha = (
+            row_union.intersection(acquired_union).area / SQM_PER_HA
+        )
+
+    potential_acquisition_area_ha = max(
+        0.0,
+        total_row_area_ha - acquired_row_area_ha
+    )
+
     summary = {
         "pipeline_length_km": alignment_union.length / 1000,
         "row_area_ha": total_row_area_ha,
+        "acquired_parcel_area_ha": acquired_row_area_ha,
         "affected_parcels": int(acquisition["parcel_id"].nunique()),
-        "potential_acquisition_area_ha": float(
-            acquisition["row_area_ha"].sum()
-        ),
+        "potential_acquisition_area_ha": potential_acquisition_area_ha,
         "affected_forest_polygons": int(
             forest_intersection["forest_id"].nunique()
         ),

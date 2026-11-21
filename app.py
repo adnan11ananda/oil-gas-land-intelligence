@@ -448,18 +448,18 @@ st.sidebar.caption(
 
 if page == "Overview":
 
-    st.header("Oil & Gas Land Intelligence")
-    st.caption(
-        "Geospatial Land Management | Pipeline ROW Design | "
-        "Land Acquisition & Environmental Screening"
-    )
+    # st.header("Oil & Gas Land Intelligence")
+    # st.caption(
+    #     "Geospatial Land Management | Pipeline ROW Design | "
+    #     "Land Acquisition & Environmental Screening"
+    # )
 
     st.markdown(
         """
         This platform supports preliminary geospatial screening
         of proposed Oil & Gas pipeline routes. It combines pipeline
         alignment design, Right of Way (ROW) generation, land
-        acquisition screening, and environmental overlay analysis.
+        acquisition screening, and forest area overlay analysis.
         """
     )
 
@@ -917,8 +917,8 @@ elif page == "Alignment Designer":
                 f"{summary['row_area_ha']:.2f} ha"
             )
             col4.metric(
-                "Affected Parcels",
-                summary["affected_parcels"]
+                "Acquired ROW",
+                f"{summary['acquired_parcel_area_ha']:.2f} ha"
             )
 
             col1, col2, col3, col4 = st.columns(4)
