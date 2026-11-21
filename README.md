@@ -1,278 +1,206 @@
 # Oil & Gas Land Intelligence Platform
 
-**A Python-based geospatial platform for preliminary pipeline ROW, land acquisition, and forest-area screening.**
+**A Python-based WebGIS application for preliminary pipeline ROW design, land acquisition screening, and environmental overlay analysis.**
 
-[![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python)](https://www.python.org/)
-[![GeoPandas](https://img.shields.io/badge/GeoPandas-Geospatial-green)](https://geopandas.org/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-WebGIS-red?logo=streamlit)](https://streamlit.io/)
+## Overview
 
----
+The Oil & Gas Land Intelligence Platform is a geospatial decision-support prototype designed to demonstrate how GIS technologies can support land management and preliminary spatial screening for Oil & Gas infrastructure projects.
 
-## 1. Project Overview
+The application allows users to draw or import proposed pipeline alignments, generate Right of Way (ROW) corridors, and identify potentially affected land parcels and forest areas through automated spatial analysis.
 
-The Oil & Gas Land Intelligence Platform demonstrates a Python-based GIS workflow for preliminary screening of proposed pipeline routes against land parcels and forest-area reference data.
+The platform combines Python geospatial libraries with an interactive Streamlit interface to make spatial screening results accessible and easier to review.
 
-Users can draw a pipeline alignment on an interactive map or import an existing polyline, define the required Right-of-Way (ROW) width, generate a ROW corridor, and review the resulting land and forest intersections.
+## Key Features
 
-The application separates the workflow into three functional modules:
+### 1. Overview Dashboard
+- Displays the latest pipeline screening results.
+- Presents key performance indicators (KPIs), including pipeline length, ROW area, affected parcels, potential acquisition area, and forest intersection.
+- Summarizes land acquisition and environmental screening results.
+- Provides an overview of application workflows and reference datasets.
 
-1. **Alignment Designer** — create/import a proposed alignment, generate its ROW corridor, view route metrics, and download the consolidated preliminary report and GIS data.
-2. **Land Acquisition** — review affected parcels, ownership information, potential ROW acquisition areas, and download a parcel-level CSV report.
-3. **Environmental Screening** — review forest-area overlays, affected forest polygons, area metrics, and download a forest overlay CSV report.
+### 2. Pipeline Alignment Designer
+- Draw a proposed pipeline alignment directly on an interactive map.
+- Import an existing alignment from:
+  - GeoJSON
+  - GeoPackage
+  - Zipped Shapefile
+  - KML
+- Configure the required ROW width.
+- Generate a ROW corridor using spatial buffering.
+- Validate alignment geometry and coordinate reference systems.
+- Check whether the proposed alignment intersects the project study area.
 
-All project datasets are synthetic and represent a fictional operating area. Outputs are intended for portfolio demonstration and preliminary spatial screening only.
+### 3. Land Acquisition Screening
+- Identify land parcels intersected by the proposed ROW.
+- Calculate the area of each parcel intersecting the ROW.
+- Estimate potential land acquisition areas.
+- Review affected parcel and ownership information.
+- Export screening results for further review.
 
-## 2. Business Context
+### 4. Environmental Screening
+- Identify forest areas intersected by the proposed ROW.
+- Calculate forest intersection areas.
+- Evaluate the percentage of the ROW located within forest areas.
+- Estimate pipeline alignment length within forest areas.
+- Export environmental screening results.
 
-Pipeline route planning requires early understanding of land access and environmental constraints. A proposed ROW can intersect multiple land parcels and land-cover categories. GIS can help identify these spatial relationships before detailed field verification and formal approval processes.
+### 5. GIS Data Export
+- Export pipeline alignment and ROW spatial data.
+- Export acquisition and environmental screening layers.
+- Generate GeoPackage and GeoJSON outputs.
+- Download preliminary screening reports in CSV format.
 
-This project demonstrates workflows for:
+## Application Workflow
 
-- Generating a ROW corridor from a pipeline centerline.
-- Identifying land parcels intersected by a proposed ROW.
-- Calculating the portion of each parcel within the proposed ROW.
-- Summarizing potential acquisition areas by ownership category.
-- Identifying forest polygons intersected by the ROW.
-- Calculating forest intersection areas and preliminary impact percentages.
-- Exporting results in interoperable geospatial and tabular formats.
+The application follows this general workflow:
 
-## 3. Application Workflow
+1. **Define Pipeline Alignment** — Draw a new pipeline route or import an existing alignment.
+2. **Configure ROW** — Specify the required ROW width.
+3. **Generate ROW Corridor** — Create a polygon corridor using the pipeline centerline.
+4. **Perform Land Acquisition Screening** — Intersect the ROW with land parcel boundaries.
+5. **Perform Environmental Screening** — Identify forest areas intersecting the ROW.
+6. **Review and Export Results** — Review summary metrics, detailed reports, and spatial outputs.
 
-### 3.1 Alignment Designer
+## Technology Stack
 
-- Draw a proposed pipeline alignment using the map drawing tool, or import an existing alignment.
-- Configure ROW width.
-- Generate the ROW corridor using a metric projected CRS.
-- Review pipeline length and ROW area.
-- View the **Proposed ROW Land Acquisition Preliminary Report**.
-- Download a GeoPackage containing the alignment, ROW corridor, acquisition screening, and forest screening layers.
-- Download the proposed alignment as GeoJSON.
-
-Supported import formats:
-- GeoPackage (`.gpkg`)
-- GeoJSON (`.geojson`, `.json`)
-- Zipped Shapefile (`.zip`)
-- KML (`.kml`, subject to the local GDAL/KML driver installation)
-
-The importer checks for usable line geometries, handles missing CRS only when the user selects an assumed CRS, converts the alignment to WGS 84 for mapping, and prepares one continuous line for the screening workflow. It can merge connected line segments and rejects disconnected segments.
-
-### 3.2 Land Acquisition
-
-The Land Acquisition page uses the latest alignment and screening results generated in Alignment Designer. It provides:
-
-- A map showing the proposed alignment, ROW corridor, and affected land parcels.
-- Affected parcel count.
-- Potential acquisition area.
-- ROW width.
-- A parcel-level screening table containing parcel identifiers, parent parcel identifiers, ownership category, land status, parcel area, ROW intersection area, affected percentage, and acquisition screening status.
-- CSV export.
-
-The reported ROW intersection area is a preliminary geometric estimate. It is not a legal determination of land ownership, compensation, or approved acquisition area.
-
-### 3.3 Environmental Screening
-
-The Environmental Screening page presents the **Forest Area Overlay Report**, based on the same latest alignment and ROW screening results. It provides:
-
-- A map showing the proposed alignment, ROW corridor, and forest polygons intersected by the ROW.
-- Number of affected forest polygons.
-- Forest intersection area.
-- Percentage of the ROW within forest areas.
-- Pipeline alignment length within forest areas.
-- A forest polygon-level report with forest identifier, forest type, original forest area, intersection area, and affected percentage.
-- CSV export.
-
-This is a preliminary spatial overlay, not a formal environmental assessment, permit, or approval.
-
-## 4. Technology Stack
-
-| Technology | Application |
+| Category | Technology |
 |---|---|
-| Python 3.12 | Core programming language |
-| GeoPandas | Geospatial data management and spatial analysis |
-| Shapely | Geometry processing and buffering |
-| Pandas | Tabular processing and reporting |
-| PyProj | Coordinate reference system transformations |
-| Pyogrio | Geospatial data input/output |
-| GeoPackage | Multi-layer spatial data delivery |
-| Streamlit | Interactive application framework |
-| Folium | Interactive map visualization |
-| streamlit-folium | Streamlit/Folium integration |
-| Plotly | Data visualization components |
-| Pytest | Automated tests |
+| Programming Language | Python |
+| WebGIS Framework | Streamlit |
+| Interactive Mapping | Folium |
+| Geospatial Data Processing | GeoPandas |
+| Geometry Operations | Shapely |
+| Data Analysis | Pandas |
+| Spatial Data Format | GeoPackage, GeoJSON, Shapefile, KML |
+| Coordinate Reference System | EPSG:32748, EPSG:4326 |
 
-## 5. Geospatial Data
+## Reference Datasets
 
-The synthetic project data is stored in GeoPackage format using **EPSG:32748 — WGS 84 / UTM Zone 48S**.
+The application uses a synthetic geospatial dataset containing:
 
-### Reference layers
-
-| Layer | Description |
+| Dataset | Description |
 |---|---|
-| `study_area` | Synthetic project study boundary |
-| `original_land_parcels` | Original synthetic cadastral parcels |
-| `land_parcels` | Remaining general land after asset land allocation |
-| `row_parcels` | Land allocated to pipeline ROW |
-| `facility_parcels` | Land allocated to production facilities |
-| `wellsite_parcels` | Land allocated to wellsites |
-| `road_parcels` | Land allocated to operational access roads |
-| `forest_areas` | Synthetic forest reference polygons |
-| `pipelines` | Existing pipeline centerlines |
-| `production_facilities` | Production facility locations |
-| `existing_wells` | Existing well locations |
-| `proposed_wells` | Proposed well locations |
-| `roads` | Synthetic operational access road centerlines |
+| Study Area | Project analysis boundary |
+| Land Parcels | Synthetic cadastral parcel boundaries |
+| Forest Areas | Environmental reference polygons |
+| Existing Pipelines | Existing pipeline network |
+| Production Facilities | Oil & Gas production facilities |
+| Existing Wells | Existing well locations |
+| Proposed Wells | Proposed well locations |
+| Roads | Synthetic access road network |
+| ROW Parcels | Pipeline ROW footprint |
+| Facility Parcels | Production facility land footprints |
+| Wellsite Parcels | Wellsite land footprints |
+| Road Parcels | Road land footprints |
 
-## 6. Screening Methodology
+The reference dataset is stored in GeoPackage format.
 
-### 6.1 ROW Generation
+## Coordinate Reference System
 
-The proposed pipeline centerline is reprojected to EPSG:32748. The ROW corridor is generated by buffering the centerline by half the user-defined total ROW width on each side. Flat end caps are used to avoid adding round end areas.
+The primary spatial analysis uses:
 
-### 6.2 Land Acquisition Screening
+- **EPSG:32748** — WGS 84 / UTM Zone 48S
 
-The generated ROW is intersected with the original parcel layer. For each affected parcel, the workflow calculates:
+This projected coordinate system supports metric-based spatial calculations, including distance, buffering, and area measurement.
 
-- Original parcel area.
-- ROW intersection area.
-- Percentage of the original parcel intersected.
-- Preliminary acquisition screening status.
+Imported alignments are transformed to the appropriate coordinate system for analysis and map display.
 
-Only the part of the parcel intersecting the proposed ROW is counted as potential ROW acquisition area; the entire parcel is not assumed to be acquired.
-
-### 6.3 Forest Area Screening
-
-The generated ROW is intersected with forest reference polygons. The workflow calculates the area of each forest polygon intersected and the percentage of its original area affected. Forest geometries are dissolved when calculating the total forest intersection with the ROW to avoid double-counting overlapping forest polygons in the route-level metric.
-
-## 7. GeoPackage Export
-
-The Alignment Designer provides a consolidated GeoPackage with four layers:
-
-| Layer | Geometry | Description |
-|---|---|---|
-| `pipeline_alignment` | Line | Proposed pipeline centerline |
-| `row_corridor` | Polygon | Generated proposed ROW corridor |
-| `acquisition_screening` | Polygon | Parcel portions intersected by the ROW |
-| `forest_screening` | Polygon | Forest portions intersected by the ROW |
-
-The alignment can also be downloaded separately as GeoJSON in WGS 84.
-
-## 8. Project Structure
+## Project Structure
 
 ```text
 oil-gas-land-intelligence/
+│
 ├── app.py
 ├── requirements.txt
-├── requirements-dev.txt
 ├── README.md
+│
 ├── data/
+│   ├── raw/
+│   ├── processed/
 │   └── synthetic/
+│
 ├── scripts/
-│   ├── build_asset_parcels.py
-│   ├── check_data.py
 │   ├── generate_data.py
-│   ├── run_screening.py
-│   └── spatial_analysis.py
+│   ├── spatial_analysis.py
+│   └── build_asset_parcels.py
+│
 ├── src/
 │   ├── __init__.py
-│   ├── alignment_import.py
-│   ├── analytics.py
 │   ├── data_loader.py
+│   ├── screening.py
+│   ├── analytics.py
 │   ├── route_screening.py
-│   └── screening.py
-├── tests/
-│   ├── test_alignment_import.py
-│   └── test_route_screening.py
+│   └── alignment_import.py
+│
 └── outputs/
+    ├── maps/
     └── reports/
 ```
 
-## 9. Installation and Setup
+## Installation
 
-### Prerequisites
-
-- Python 3.12 recommended.
-- Git.
-- Visual Studio Code recommended.
-
-### 9.1 Clone the repository
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/adnan11ananda/oil-gas-land-intelligence.git
 cd oil-gas-land-intelligence
 ```
 
-### 9.2 Create and activate a virtual environment
-
-```bash
-python -m venv .venv
-```
+### 2. Create a virtual environment
 
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
+python -m venv .venv
+.venv\Scripts\Activate.ps1
 ```
 
-### 9.3 Install dependencies
+### 3. Install dependencies
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -r requirements.txt
 ```
 
-### 9.4 Run the application
+### 4. Run the application
 
 ```bash
 streamlit run app.py
 ```
 
-### 9.5 Run automated tests
+The application will open in your default browser.
 
-```bash
-pytest
-```
+## Analytical Methodology
 
-## 10. Current Implementation Status
+The platform applies standard vector-based GIS operations:
 
-- [x] Synthetic cadastral and forest datasets.
-- [x] Oil & Gas infrastructure reference layers.
-- [x] Infrastructure-related land parcel delineation.
-- [x] Parent parcel traceability.
-- [x] Interactive pipeline alignment drawing.
-- [x] Proposed alignment file import (GeoPackage, GeoJSON, zipped Shapefile, and KML where supported).
-- [x] ROW corridor generation with configurable width.
-- [x] Land acquisition spatial screening.
-- [x] Forest-area overlay screening.
-- [x] Dedicated Land Acquisition report page.
-- [x] Dedicated Forest Area Overlay report page.
-- [x] Consolidated GeoPackage export with four layers.
-- [x] GeoJSON alignment export.
-- [x] CSV report exports.
-- [x] Automated tests for alignment import and route screening.
+- **Buffering:** Generates a ROW corridor around the proposed pipeline centerline.
+- **Intersection:** Identifies land parcels and forest polygons intersecting the ROW.
+- **Area Calculation:** Calculates the spatial area of affected land and forest intersections.
+- **Length Calculation:** Measures pipeline alignment length and the portion intersecting forest areas.
+- **Coordinate Transformation:** Uses projected coordinates for metric calculations and geographic coordinates for web mapping.
 
-## 11. Known Limitations
+Potential acquisition area represents the geometric portion of land parcels intersecting the proposed ROW. It should not be interpreted as an approved or legally compensable acquisition area.
 
-- All datasets are synthetic and do not represent actual operating assets, cadastral boundaries, landowners, pipeline routes, or forest boundaries.
-- The application uses EPSG:32748 for metric screening, which is appropriate for the demonstration dataset's geographic area; other project locations may require a different projected CRS.
-- The current GeoPackage importer selects the first detected line layer. Selection among multiple line layers is not yet implemented.
-- Study-area validation currently checks whether the alignment intersects the study area; partial coverage warnings are not yet implemented.
-- KML support depends on the installed GDAL driver.
-- Screening results are preliminary spatial calculations and must not be treated as legal land acquisition determinations, engineering design, environmental approvals, or operational instructions.
+## Limitations and Disclaimer
 
-## 12. Author
+This project is a portfolio demonstration and uses synthetic geospatial data.
 
-**Adnan Ananda**  
-Geomatics Engineer | GIS Engineer | Oil & Gas Land Management
+- Spatial datasets are illustrative and do not represent actual operational assets or cadastral records.
+- Screening results are preliminary spatial indicators.
+- Land acquisition results do not constitute legal ownership verification or formal land valuation.
+- Environmental screening does not replace a formal environmental assessment.
+- Pipeline alignments and ROW widths must be validated against applicable engineering, regulatory, and project requirements before real-world use.
 
-Technical interests:
-- Oil & Gas Geospatial Information Systems
-- Geospatial Database Management
-- Cadastral and Land Administration GIS
-- Pipeline ROW Management
-- Python-based GIS Automation
-- WebGIS and Spatial Analytics
+## Project Objective
 
-GitHub: [github.com/adnan11ananda](https://github.com/adnan11ananda)
+This project demonstrates practical capabilities in:
 
----
+- Geospatial data management.
+- Python-based GIS automation.
+- Spatial analysis and overlay operations.
+- Pipeline ROW and land acquisition screening.
+- Environmental constraint screening.
+- Interactive WebGIS application development.
+- Geospatial reporting and data export.
 
-*Developed for professional portfolio and technical demonstration purposes.*
+**Developed as a personal GIS portfolio project to demonstrate the application of geospatial technologies in Oil & Gas land management and infrastructure planning.**
