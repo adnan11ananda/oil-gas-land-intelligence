@@ -59,30 +59,48 @@ def load_layer(file_path, layer_name):
         layer=layer_name
     )
 
-def prepare_alignment_exports(pipeline_gdf, row_gdf):
+def prepare_alignment_exports(
+    pipeline_gdf,
+    row_gdf,
+    screening_results
+):
 
-    # Convert both layers to metric CRS
+    # Convert all layers to metric CRS
     pipeline_metric = pipeline_gdf.to_crs(epsg=32748).copy()
     row_metric = row_gdf.to_crs(epsg=32748).copy()
+
+    acquisition_metric = (
+        screening_results["acquisition"]
+        .to_crs(epsg=32748)
+        .copy()
+    )
+
+    forest_metric = (
+        screening_results["forest_intersection"]
+        .to_crs(epsg=32748)
+        .copy()
+    )
 
     # Calculate pipeline length
     pipeline_metric["length_km"] = (
         pipeline_metric.geometry.length / 1000
     )
 
-    # Create temporary GeoPackage
+    # Create GeoPackage
     with tempfile.TemporaryDirectory() as temp_dir:
 
-        gpkg_path = Path(temp_dir) / "proposed_pipeline_package.gpkg"
+        gpkg_path = (
+            Path(temp_dir) / "proposed_pipeline_package.gpkg"
+        )
 
-        # Write pipeline alignment
+        # Layer 1: Pipeline alignment
         pipeline_metric.to_file(
             gpkg_path,
             layer="pipeline_alignment",
             driver="GPKG"
         )
 
-        # Append ROW corridor as a second layer
+        # Layer 2: ROW corridor
         row_metric.to_file(
             gpkg_path,
             layer="row_corridor",
@@ -90,9 +108,25 @@ def prepare_alignment_exports(pipeline_gdf, row_gdf):
             mode="a"
         )
 
+        # Layer 3: Acquisition screening
+        acquisition_metric.to_file(
+            gpkg_path,
+            layer="acquisition_screening",
+            driver="GPKG",
+            mode="a"
+        )
+
+        # Layer 4: Forest screening
+        forest_metric.to_file(
+            gpkg_path,
+            layer="forest_screening",
+            driver="GPKG",
+            mode="a"
+        )
+
         gpkg_data = gpkg_path.read_bytes()
 
-    # Export centerline as GeoJSON
+    # Export pipeline centerline as GeoJSON
     pipeline_geojson = (
         pipeline_gdf
         .to_crs(epsg=4326)
@@ -606,7 +640,8 @@ elif page == "Alignment Designer":
             # Generate export files
             gpkg_data, geojson_data = prepare_alignment_exports(
                 drawn_pipeline_gdf,
-                row_gdf
+                row_gdf,
+                screening_results
             )
 
             col1, col2 = st.columns(2)
