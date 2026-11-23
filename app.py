@@ -40,6 +40,9 @@ SCREENING_PATH = (
     / "proposed_pipeline_screening.gpkg"
 )
 
+# User documentation displayed on the Overview page
+USER_GUIDE_PATH = PROJECT_DIR / "docs" / "User_Guide.pdf"
+
 # CRS choices offered when an imported file has no CRS
 ASSUMED_CRS_OPTIONS = {
     "Reject files without a CRS": None,
@@ -462,6 +465,31 @@ if page == "Overview":
         acquisition screening, and forest area overlay analysis.
         """
     )
+
+    # User Guide download
+    st.subheader("User Guide")
+    st.markdown(
+        "New to the application? The user guide walks through the main "
+        "steps, from creating a pipeline alignment to reviewing and "
+        "downloading the screening results."
+    )
+
+    if USER_GUIDE_PATH.is_file():
+        guide_data = USER_GUIDE_PATH.read_bytes()
+
+        st.download_button(
+            label="Download User Guide (PDF)",
+            data=guide_data,
+            file_name="Oil_Gas_Land_Intelligence_User_Guide.pdf",
+            mime="application/pdf",
+            key="download_user_guide",
+        )
+    else:
+        st.info(
+            "The user guide is not available yet. Add the PDF to "
+            "`docs/User_Guide.pdf` in the project repository and "
+            "redeploy the application."
+        )
 
     st.divider()
 
